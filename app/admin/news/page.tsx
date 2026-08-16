@@ -1,0 +1,327 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import {
+  Newspaper,
+  Plus,
+  Trash2,
+  Edit3,
+  Eye,
+  CheckCircle,
+  Zap,
+} from 'lucide-react';
+import { platformStore } from '@/lib/data/store';
+import { Article, ArticleCategory } from '@/lib/types';
+import confetti from 'canvas-confetti';
+
+export default function AdminNewsManager() {
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const [form, setForm] = useState<Article>({
+    id: '',
+    slug: '',
+    title: '',
+    subtitle: '',
+    category: 'gaming_news',
+    hero_image_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
+    gallery_images: [],
+    content: `# Breaking Dispatch Title\n\nFull journalistic report and benchmark findings.`,
+    tags: ['Gaming', 'Hardware'],
+    author: 'Alex Mercer',
+    read_time: 4,
+    is_breaking: true,
+    published_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  });
+
+  useEffect(() => {
+    const news = platformStore.getArticles().filter((a) => a.category !== 'beauty_fashion');
+    setArticles(news);
+  }, []);
+
+  const handleOpenCreate = () => {
+    setForm({
+      id: 'art-' + Date.now(),
+      slug: '',
+      title: '',
+      subtitle: '',
+      category: 'gaming_news',
+      hero_image_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
+      gallery_images: [],
+      content: `# News Dispatch\n\nWrite your breaking news story or editorial article here.`,
+      tags: ['Gaming News', 'Silicon'],
+      author: 'Alex Mercer',
+      read_time: 4,
+      is_breaking: false,
+      published_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    });
+    setIsEditing(true);
+  };
+
+  const handleTitleChange = (val: string) => {
+    const slug = val
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+    setForm((prev) => ({
+      ...prev,
+      title: val,
+      slug: prev.id.startsWith('art-') ? slug : prev.slug,
+    }));
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title || !form.slug) {
+      alert('Title and Slug required');
+      return;
+    }
+    platformStore.saveArticle(form);
+    setArticles(platformStore.getArticles().filter((a) => a.category !== 'beauty_fashion'));
+    setIsEditing(false);
+    setFeedback(`News story "${form.title}" published!`);
+    confetti({ particleCount: 60, spread: 60 });
+    setTimeout(() => setFeedback(null), 5000);
+  };
+
+  const handleEdit = (art: Article) => {
+    setForm({ ...art });
+    setIsEditing(true);
+  };
+
+  const handleDelete = (id: string, title: string) => {
+    if (confirm(`Delete news story "${title}"?`)) {
+      platformStore.deleteArticle(id);
+      setArticles(platformStore.getArticles().filter((a) => a.category !== 'beauty_fashion'));
+      setFeedback(`Story "${title}" deleted.`);
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-mono font-bold text-red-400">
+            <Newspaper className="w-4 h-4" />
+            <span>NEWSROOM & EDITORIAL CMS</span>
+          </div>
+          <h1 className="text-3xl font-black text-white">Blogs & News Dispatch CMS</h1>
+          <p className="text-xs text-zinc-400 mt-1">
+            Publish breaking gaming news, patch notes, hardware announcements, and editorial essays.
+          </p>
+        </div>
+
+        <button
+          onClick={handleOpenCreate}
+          className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-red-500 shadow-lg shadow-red-600/25 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Publish News Story</span>
+        </button>
+      </div>
+
+      {feedback && (
+        <div className="flex items-center gap-2 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 p-4 text-xs font-bold text-emerald-300">
+          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <span>{feedback}</span>
+        </div>
+      )}
+
+      {/* FORM BUILDER */}
+      {isEditing && (
+        <div className="rounded-3xl border border-red-500/40 bg-zinc-900/95 p-6 sm:p-8 shadow-2xl space-y-6">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+            <h3 className="text-xl font-bold text-white">
+              {form.id.startsWith('art-') ? 'Publish News / Blog Story' : 'Edit Story'}
+            </h3>
+            <button onClick={() => setIsEditing(false)} className="text-xs text-zinc-400 hover:text-white">
+              Cancel
+            </button>
+          </div>
+
+          <form onSubmit={handleSave} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Headline</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Next-Gen Portable Handhelds APU Thermal Benchmarks"
+                  value={form.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Category</label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value as ArticleCategory })}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"
+                >
+                  <option value="gaming_news">Gaming & Silicon News</option>
+                  <option value="news_editorial">Editorial & Essays</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">URL Slug</label>
+                <input
+                  type="text"
+                  required
+                  value={form.slug}
+                  onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-red-300 font-mono focus:border-red-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Read Time (mins)</label>
+                <input
+                  type="number"
+                  value={form.read_time}
+                  onChange={(e) => setForm({ ...form, read_time: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-white focus:border-red-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Subtitle / Lede</label>
+              <input
+                type="text"
+                value={form.subtitle || ''}
+                onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Hero Image URL</label>
+              <input
+                type="text"
+                required
+                value={form.hero_image_url}
+                onChange={(e) => setForm({ ...form, hero_image_url: e.target.value })}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300 font-mono focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Article Body (Markdown)</label>
+              <textarea
+                rows={8}
+                required
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-zinc-950 border border-zinc-800">
+              <input
+                type="checkbox"
+                checked={form.is_breaking || false}
+                onChange={(e) => setForm({ ...form, is_breaking: e.target.checked })}
+                className="h-4 w-4 rounded text-red-500"
+              />
+              <div className="flex items-center gap-1.5 text-xs font-bold text-red-400">
+                <Zap className="w-3.5 h-3.5" />
+                <span>Flag as Breaking Dispatch (Displays prominent homepage alert banner)</span>
+              </div>
+            </label>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="rounded-xl bg-zinc-800 px-5 py-2.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-red-600 px-6 py-2.5 text-xs font-bold text-white hover:bg-red-500 shadow-lg shadow-red-600/20"
+              >
+                Publish Dispatch
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* NEWS STORIES TABLE */}
+      <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/60 shadow-xl">
+        <div className="p-5 border-b border-zinc-800 flex items-center justify-between">
+          <h3 className="text-base font-bold text-white">Live Dispatches & Editorial Stories</h3>
+          <span className="text-xs font-mono text-zinc-400">{articles.length} Stories Live</span>
+        </div>
+
+        <div className="divide-y divide-zinc-800/80">
+          {articles.map((art) => (
+            <div
+              key={art.id}
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 hover:bg-zinc-900/90 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <div className="relative h-14 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-zinc-950 border border-zinc-800">
+                  <Image src={art.hero_image_url} alt={art.title} fill className="object-cover" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-white">{art.title}</h4>
+                    {art.is_breaking && (
+                      <span className="rounded bg-red-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-red-400 border border-red-500/40">
+                        BREAKING
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
+                    <span>{art.category.replace('_', ' ')}</span>
+                    <span>•</span>
+                    <span>{art.read_time} min read</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/news/${art.slug}`}
+                  target="_blank"
+                  className="flex items-center gap-1 rounded-xl bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview</span>
+                </Link>
+
+                <button
+                  onClick={() => handleEdit(art)}
+                  className="rounded-xl bg-zinc-800 p-2 text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => handleDelete(art.id, art.title)}
+                  className="rounded-xl bg-rose-950/40 border border-rose-800/40 p-2 text-rose-400 hover:bg-rose-900/60 hover:text-white"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
