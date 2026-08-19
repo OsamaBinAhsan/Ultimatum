@@ -1,18 +1,20 @@
 -- ==============================================================================
--- ULTIMATUM PLATFORM - COMPLETE SUPABASE POSTGRESQL SCHEMA
--- Tech: Next.js 14 App Router, TypeScript, Tailwind CSS, Supabase RLS & Functions
--- Includes: Games, Recipes, Reviews, Articles (Beauty/Fashion & News), Sponsors, Profiles, Bookmarks
+-- ULTIMATUM PLATFORM - HOSTING SERVER DATABASE SCHEMA & SEED DATA
+-- Database Target: PostgreSQL / Supabase on Hosting Server
+-- Tech: Next.js App Router, TypeScript, Supabase RLS / Direct Node.js DB Client
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. PROFILES TABLE (Linked with Supabase Auth users)
+-- 1. PROFILES TABLE (Supports direct hosting server DB auth & Supabase Auth)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email TEXT UNIQUE,
+    password_hash TEXT,
     username TEXT UNIQUE NOT NULL,
-    avatar_url TEXT DEFAULT 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    avatar_url TEXT DEFAULT 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
     role TEXT DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
-    points INTEGER DEFAULT 100,
+    points INTEGER DEFAULT 250,
     daily_streak INTEGER DEFAULT 1,
     last_active_date DATE DEFAULT CURRENT_DATE,
     vip_ad_lite_until TIMESTAMPTZ,
@@ -91,7 +93,7 @@ CREATE TABLE IF NOT EXISTS public.reviews (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 6. ARTICLES TABLE (Beauty & Fashion, Editorial News, Gaming Blogs)
+-- 6. ARTICLES TABLE
 CREATE TABLE IF NOT EXISTS public.articles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     slug TEXT UNIQUE NOT NULL,
@@ -105,7 +107,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
     author TEXT NOT NULL,
     read_time INTEGER DEFAULT 5,
     is_breaking BOOLEAN DEFAULT false,
-    shoppable_items JSONB DEFAULT '[]'::jsonb, -- Array of {name, brand, price, affiliate_url, image_url}
+    shoppable_items JSONB DEFAULT '[]'::jsonb,
     published_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
@@ -140,7 +142,7 @@ CREATE TABLE IF NOT EXISTS public.pages (
     updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 9. USER BOOKMARKS & SAVED VAULT
+-- 9. USER BOOKMARKS
 CREATE TABLE IF NOT EXISTS public.bookmarks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -159,8 +161,8 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
 );
 
 -- INDEXES
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_articles_slug ON public.articles(slug);
-CREATE INDEX IF NOT EXISTS idx_articles_category ON public.articles(category);
 CREATE INDEX IF NOT EXISTS idx_recipes_slug ON public.recipes(slug);
 CREATE INDEX IF NOT EXISTS idx_reviews_slug ON public.reviews(slug);
 CREATE INDEX IF NOT EXISTS idx_games_slug ON public.games(slug);
@@ -179,47 +181,30 @@ ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 
--- Public Read
-CREATE POLICY "Public articles are viewable by everyone" ON public.articles FOR SELECT USING (true);
-CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Public games are viewable by everyone" ON public.games FOR SELECT USING (true);
-CREATE POLICY "Public leaderboards are viewable by everyone" ON public.leaderboards FOR SELECT USING (true);
-CREATE POLICY "Public recipes are viewable by everyone" ON public.recipes FOR SELECT USING (true);
-CREATE POLICY "Public reviews are viewable by everyone" ON public.reviews FOR SELECT USING (true);
-CREATE POLICY "Public sponsors are viewable by everyone" ON public.sponsors FOR SELECT USING (is_active = true);
-CREATE POLICY "Public pages are viewable by everyone" ON public.pages FOR SELECT USING (true);
-CREATE POLICY "Public settings are viewable by everyone" ON public.site_settings FOR SELECT USING (true);
+-- Public Read Policies
+CREATE POLICY "Public articles viewable" ON public.articles FOR SELECT USING (true);
+CREATE POLICY "Public profiles viewable" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Public games viewable" ON public.games FOR SELECT USING (true);
+CREATE POLICY "Public leaderboards viewable" ON public.leaderboards FOR SELECT USING (true);
+CREATE POLICY "Public recipes viewable" ON public.recipes FOR SELECT USING (true);
+CREATE POLICY "Public reviews viewable" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Public sponsors viewable" ON public.sponsors FOR SELECT USING (is_active = true);
+CREATE POLICY "Public pages viewable" ON public.pages FOR SELECT USING (true);
+CREATE POLICY "Public settings viewable" ON public.site_settings FOR SELECT USING (true);
 
--- Authenticated Users
-CREATE POLICY "Users can manage own bookmarks" ON public.bookmarks FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert own scores" ON public.leaderboards FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+-- INITIAL SEED DATA FOR HOSTING SERVER DATABASE
+INSERT INTO public.profiles (id, username, email, role, points, daily_streak, badges)
+VALUES 
+    ('e1010000-0000-0000-0000-000000000001', 'PixelNinja', 'admin@ultimatum.gg', 'admin', 8450, 14, '["Super Admin", "Arcade Legend", "Michelin Gourmet"]'),
+    ('e1010000-0000-0000-0000-000000000002', 'CyberChef_X', 'player@ultimatum.gg', 'user', 1250, 5, '["Weekly Top 10", "Taste Explorer"]')
+ON CONFLICT (username) DO NOTHING;
 
--- Super Admin Full CRUD
-CREATE POLICY "Admins have full access to articles" ON public.articles FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to profiles" ON public.profiles FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to games" ON public.games FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to leaderboards" ON public.leaderboards FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to recipes" ON public.recipes FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to reviews" ON public.reviews FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to sponsors" ON public.sponsors FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to pages" ON public.pages FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Admins have full access to site_settings" ON public.site_settings FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-);
+INSERT INTO public.games (id, slug, title, description, category, thumbnail_url, game_file_url, is_sponsored, play_count)
+VALUES
+    ('g1010000-0000-0000-0000-000000000001', 'neon-asteroid-blitz', 'Neon Asteroid Blitz', 'High-octane space vector shooter. Destroy cosmic anomalies, trigger hyper-bombs, and dominate weekly leaderboards!', 'arcade', 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80', '/canvas/neon-blitz', true, 1420),
+    ('g1010000-0000-0000-0000-000000000002', 'cyber-slicer', 'Cyber Slicer 2099', 'Precision sword slicing arcade game. Slash neon targets and avoid overload mines.', 'action', 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80', '/canvas/cyber-slicer', false, 980)
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO public.site_settings (key, value)
+VALUES ('main_settings', '{"announcement": {"enabled": true, "text": "🔥 WEEKLY ARCADE TOURNAMENT LIVE: Play Neon Asteroid Blitz & Win 5,000 XP!", "link": "/games/neon-asteroid-blitz"}, "monetization": {"ads_enabled": true, "header_ad": true, "sidebar_ad": true, "in_content_ad": true, "sticky_footer_ad": true, "rewarded_ads": true}}'::jsonb)
+ON CONFLICT (key) DO NOTHING;

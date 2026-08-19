@@ -77,27 +77,24 @@ export function AuthModal({
     setMessage(null);
 
     try {
-      if (isSupabaseConfigured()) {
-        if (tab === 'signup') {
-          const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: { username: username || email.split('@')[0] },
-            },
-          });
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) throw error;
-        }
+      const endpoint = tab === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, username }),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok || !resData.success) {
+        throw new Error(resData.error || 'Authentication failed');
       }
 
-      // Sync into local session store
-      const user = platformStore.login(email, email.includes('admin') ? 'admin' : 'user');
+      // Sync user profile into session
+      const user = resData.user || platformStore.login(email, email.includes('admin') ? 'admin' : 'user');
       setCurrentUser(user);
       confetti({ particleCount: 60, spread: 60 });
-      setMessage(`Welcome back, ${user.username}!`);
+      setMessage(tab === 'signup' ? `Account created! Welcome, ${user.username}!` : `Welcome back, ${user.username}!`);
       setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
