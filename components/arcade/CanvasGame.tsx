@@ -6,6 +6,7 @@ import { CyberSlicerEngine } from './games/CyberSlicer';
 import { PixelKitchenRushEngine } from './games/PixelKitchenRush';
 import { DungeonLootDashEngine } from './games/DungeonLootDash';
 import { SabotageCircuitEngine } from './games/SabotageCircuit';
+import { TheArchitectAndTheRatsEngine } from './games/TheArchitectAndTheRats';
 
 interface CanvasGameProps {
   gameId: string;
@@ -16,6 +17,15 @@ interface CanvasGameProps {
 
 export function CanvasGame({ gameId, gameTitle, gameSlug, onScoreSubmitted }: CanvasGameProps) {
   const normalized = (gameSlug || gameTitle).toLowerCase();
+
+  if (
+    normalized.includes('architect') ||
+    normalized.includes('archi-rat') ||
+    normalized.includes('rats') ||
+    normalized.includes('the-architect-and-the-rats')
+  ) {
+    return <TheArchitectAndTheRatsEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+  }
 
   if (normalized.includes('sabotage') || normalized.includes('circuit')) {
     return <SabotageCircuitEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;

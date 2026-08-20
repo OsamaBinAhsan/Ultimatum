@@ -69,7 +69,14 @@ class PlatformStore {
     if (typeof window === 'undefined') return;
     try {
       const g = localStorage.getItem('ultimatum_games');
-      if (g) this.games = JSON.parse(g);
+      if (g) {
+        const storedGames: Game[] = JSON.parse(g);
+        const existingIds = new Set(storedGames.map((item) => item.id || item.slug));
+        const missingGames = INITIAL_GAMES.filter(
+          (item) => !existingIds.has(item.id) && !existingIds.has(item.slug)
+        );
+        this.games = [...storedGames, ...missingGames];
+      }
       const r = localStorage.getItem('ultimatum_recipes');
       if (r) this.recipes = JSON.parse(r);
       const rev = localStorage.getItem('ultimatum_reviews');
@@ -83,7 +90,12 @@ class PlatformStore {
       const set = localStorage.getItem('ultimatum_settings');
       if (set) this.settings = JSON.parse(set);
       const lb = localStorage.getItem('ultimatum_leaderboard');
-      if (lb) this.leaderboard = JSON.parse(lb);
+      if (lb) {
+        const storedLb: LeaderboardEntry[] = JSON.parse(lb);
+        const existingIds = new Set(storedLb.map((item) => item.id));
+        const missingEntries = INITIAL_LEADERBOARD.filter((item) => !existingIds.has(item.id));
+        this.leaderboard = [...storedLb, ...missingEntries];
+      }
       const prof = localStorage.getItem('ultimatum_profiles');
       if (prof) this.profiles = JSON.parse(prof);
       const bm = localStorage.getItem('ultimatum_bookmarks');

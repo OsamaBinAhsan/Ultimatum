@@ -122,6 +122,8 @@ export default function SingleGamePage() {
                     ? 'SPACE / UP (Double Jump)'
                     : game.slug === 'sabotage-circuit'
                     ? 'Valve Sliders & Breakers'
+                    : game.slug === 'the-architect-and-the-rats'
+                    ? 'WASD / Click to Build'
                     : 'Arrow Keys / WASD'}
                 </div>
               </div>
@@ -136,6 +138,8 @@ export default function SingleGamePage() {
                     ? 'DOWN (Slide Obstacles)'
                     : game.slug === 'sabotage-circuit'
                     ? 'Signal Tuning & Split Code'
+                    : game.slug === 'the-architect-and-the-rats'
+                    ? 'F (Sonar Radar) / SPACE (Lights Out)'
                     : 'SPACEBAR Plasma Lasers'}
                 </div>
               </div>
@@ -150,6 +154,8 @@ export default function SingleGamePage() {
                     ? 'Grab diamond chests for +500'
                     : game.slug === 'sabotage-circuit'
                     ? 'Keep all 6 sectors nominal to heal Core!'
+                    : game.slug === 'the-architect-and-the-rats'
+                    ? 'Sonar costs 5s off the clock—use it tactically!'
                     : 'Detonate EMP with key B / E'}
                 </div>
               </div>

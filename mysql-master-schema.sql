@@ -233,6 +233,15 @@ VALUES
     ('user-003', 'AeroStrike', 'aerostrike@ultimatum.gg', 'user', 2980, 2, '["Sharpshooter", "Speed Demon"]'),
     ('user-004', 'SpiceOverlord', 'spice@ultimatum.gg', 'user', 1840, 1, '["Taste Tester", "Kitchen Samurai"]');
 
+INSERT IGNORE INTO `games` (`id`, `slug`, `title`, `description`, `category`, `thumbnail_url`, `game_file_url`, `is_sponsored`, `sponsor_name`, `play_count`)
+VALUES
+    ('game-001', 'neon-asteroid-blitz', 'Neon Asteroid Blitz', 'High-octane retro arcade shooter. Pilot your neon starship through deep space debris, unleash laser blasts, collect powerup crystals, and dominate the weekly global leaderboard.', 'arcade', 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80', 'canvas://neon-asteroid-blitz', 1, 'Razer Gaming Gear', 34820),
+    ('game-002', 'cyber-slicer-2099', 'Cyber Slicer 2099', 'Fast-paced rhythmic reflex slicer. Cut glowing energy nodes before they breach your firewall perimeter in this futuristic synthwave challenge.', 'action', 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80', 'canvas://cyber-slicer', 0, NULL, 22150),
+    ('game-003', 'pixel-kitchen-rush', 'Pixel Kitchen Rush', 'Frenetic 2D culinary rush! Juggle gourmet orders, chop ingredients, flip steaks, and satisfy demanding VIP food critics before the timer expires.', 'puzzle', 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80', 'canvas://pixel-kitchen', 1, 'Hestan Masterware', 18940),
+    ('game-004', 'dungeon-loot-dash', 'Dungeon Loot Dash', 'Classic 8-bit endless runner. Dodge lava traps, jump over spike barriers, and stack legendary gold chests to redeem exclusive profile badges.', 'retro', 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=800&q=80', 'canvas://dungeon-loot', 0, NULL, 14780),
+    ('game-005', 'sabotage-circuit', 'Sabotage Circuit', '5-Player Asynchronous Deception & Crisis Management Simulator. 4 Engineers must maintain Core Integrity while 1 secretly assigned Saboteur triggers cascading failures across 6 interconnected power and logic sectors.', 'action', 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80', 'canvas://sabotage-circuit', 1, 'CyberCore Industries', 28940),
+    ('game-006', 'the-architect-and-the-rats', 'The Architect & The Rats', '1v4 Asymmetrical Maze Deception & Escape Arena. 1-2 Architects forge a deadly labyrinth of spikes, decoys, and trigger traps while Rats navigate through fog of war to find the True Gold Exit before time runs out.', 'retro', 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80', 'canvas://the-architect-and-the-rats', 1, 'RetroGrid Labs', 31250);
+
 INSERT IGNORE INTO `player_profiles` (`id`, `username`, `display_name`)
 VALUES 
     ('user-001', 'PixelNinja', 'PixelNinja'),

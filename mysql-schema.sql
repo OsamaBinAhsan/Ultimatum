@@ -169,7 +169,8 @@ VALUES
 INSERT IGNORE INTO `games` (`id`, `slug`, `title`, `description`, `category`, `thumbnail_url`, `game_file_url`, `is_sponsored`, `play_count`)
 VALUES
     ('g1010000-0000-0000-0000-000000000001', 'neon-asteroid-blitz', 'Neon Asteroid Blitz', 'High-octane space vector shooter. Destroy cosmic anomalies, trigger hyper-bombs, and dominate weekly leaderboards!', 'arcade', 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80', '/canvas/neon-blitz', 1, 1420),
-    ('g1010000-0000-0000-0000-000000000002', 'cyber-slicer', 'Cyber Slicer 2099', 'Precision sword slicing arcade game. Slash neon targets and avoid overload mines.', 'action', 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80', '/canvas/cyber-slicer', 0, 980);
+    ('g1010000-0000-0000-0000-000000000002', 'cyber-slicer', 'Cyber Slicer 2099', 'Precision sword slicing arcade game. Slash neon targets and avoid overload mines.', 'action', 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80', '/canvas/cyber-slicer', 0, 980),
+    ('g1010000-0000-0000-0000-000000000006', 'the-architect-and-the-rats', 'The Architect & The Rats', '1v4 Asymmetrical Maze Deception & Escape Arena. 1-2 Architects forge a deadly labyrinth of spikes, decoys, and trigger traps while Rats navigate through fog of war to find the True Gold Exit before time runs out.', 'retro', 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80', '/canvas/the-architect-and-the-rats', 1, 31250);
 
 INSERT IGNORE INTO `site_settings` (`key`, `value`)
 VALUES ('main_settings', '{"announcement": {"enabled": true, "text": "🔥 WEEKLY ARCADE TOURNAMENT LIVE: Play Neon Asteroid Blitz & Win 5,000 XP!", "link": "/games/neon-asteroid-blitz"}, "monetization": {"ads_enabled": true, "header_ad": true, "sidebar_ad": true, "in_content_ad": true, "sticky_footer_ad": true, "rewarded_ads": true}}');

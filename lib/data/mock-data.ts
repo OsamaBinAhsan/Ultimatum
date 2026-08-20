@@ -265,6 +265,19 @@ export const INITIAL_GAMES: Game[] = [
     play_count: 28940,
     created_at: '2026-03-10T16:00:00Z',
   },
+  {
+    id: 'game-006',
+    slug: 'the-architect-and-the-rats',
+    title: 'The Architect & The Rats',
+    description: '1v4 Asymmetrical Maze Deception & Escape Arena. 1-2 Architects forge a deadly labyrinth of spikes, decoys, and trigger traps while Rats navigate through fog of war to find the True Gold Exit before time runs out.',
+    category: 'retro',
+    thumbnail_url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80',
+    game_file_url: 'canvas://the-architect-and-the-rats',
+    is_sponsored: true,
+    sponsor_name: 'RetroGrid Labs',
+    play_count: 31250,
+    created_at: '2026-03-15T10:00:00Z',
+  },
 ];
 
 export const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
@@ -417,6 +430,33 @@ export const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
       username: 'AeroStrike',
       avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
       badges: ['Master Engineer'],
+    },
+  },
+  // Game 006 - The Architect & The Rats
+  {
+    id: 'lb-015',
+    user_id: 'user-001',
+    game_id: 'game-006',
+    score: 15000,
+    week_timestamp: '2026-08-11T00:00:00Z',
+    created_at: '2026-08-15T18:30:00Z',
+    profile: {
+      username: 'PixelNinja',
+      avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      badges: ['Maze Master', 'Grand Champion'],
+    },
+  },
+  {
+    id: 'lb-016',
+    user_id: 'user-002',
+    game_id: 'game-006',
+    score: 12500,
+    week_timestamp: '2026-08-11T00:00:00Z',
+    created_at: '2026-08-14T21:00:00Z',
+    profile: {
+      username: 'CyberGourmet',
+      avatar_url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
+      badges: ['Rat Escape Artist'],
     },
   },
 ];
