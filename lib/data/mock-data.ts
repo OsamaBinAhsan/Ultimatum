@@ -252,6 +252,19 @@ export const INITIAL_GAMES: Game[] = [
     play_count: 14780,
     created_at: '2026-03-02T18:00:00Z',
   },
+  {
+    id: 'game-005',
+    slug: 'sabotage-circuit',
+    title: 'Sabotage Circuit',
+    description: '5-Player Asynchronous Deception & Crisis Management Simulator. 4 Engineers must maintain Core Integrity while 1 secretly assigned Saboteur triggers cascading failures across 6 interconnected power and logic sectors.',
+    category: 'action',
+    thumbnail_url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80',
+    game_file_url: 'canvas://sabotage-circuit',
+    is_sponsored: true,
+    sponsor_name: 'CyberCore Industries',
+    play_count: 28940,
+    created_at: '2026-03-10T16:00:00Z',
+  },
 ];
 
 export const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
@@ -377,6 +390,33 @@ export const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
       username: 'AeroStrike',
       avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
       badges: ['Treasure Raider'],
+    },
+  },
+  // Game 005 - Sabotage Circuit
+  {
+    id: 'lb-013',
+    user_id: 'user-001',
+    game_id: 'game-005',
+    score: 9800,
+    week_timestamp: '2026-08-11T00:00:00Z',
+    created_at: '2026-08-15T16:00:00Z',
+    profile: {
+      username: 'PixelNinja',
+      avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      badges: ['Grand Champion', 'Circuit Master'],
+    },
+  },
+  {
+    id: 'lb-014',
+    user_id: 'user-003',
+    game_id: 'game-005',
+    score: 8450,
+    week_timestamp: '2026-08-11T00:00:00Z',
+    created_at: '2026-08-14T20:15:00Z',
+    profile: {
+      username: 'AeroStrike',
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      badges: ['Master Engineer'],
     },
   },
 ];

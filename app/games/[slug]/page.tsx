@@ -120,6 +120,8 @@ export default function SingleGamePage() {
                     ? 'Station Taps / Click'
                     : game.slug === 'dungeon-loot-dash'
                     ? 'SPACE / UP (Double Jump)'
+                    : game.slug === 'sabotage-circuit'
+                    ? 'Valve Sliders & Breakers'
                     : 'Arrow Keys / WASD'}
                 </div>
               </div>
@@ -132,6 +134,8 @@ export default function SingleGamePage() {
                     ? 'Chop, Sizzle, Expedite'
                     : game.slug === 'dungeon-loot-dash'
                     ? 'DOWN (Slide Obstacles)'
+                    : game.slug === 'sabotage-circuit'
+                    ? 'Signal Tuning & Split Code'
                     : 'SPACEBAR Plasma Lasers'}
                 </div>
               </div>
@@ -144,6 +148,8 @@ export default function SingleGamePage() {
                     ? 'Do not let steaks burn!'
                     : game.slug === 'dungeon-loot-dash'
                     ? 'Grab diamond chests for +500'
+                    : game.slug === 'sabotage-circuit'
+                    ? 'Keep all 6 sectors nominal to heal Core!'
                     : 'Detonate EMP with key B / E'}
                 </div>
               </div>
