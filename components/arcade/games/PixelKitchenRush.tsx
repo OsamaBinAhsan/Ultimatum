@@ -1,7 +1,32 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, RotateCcw, Volume2, VolumeX, Flame, Sparkles, Trophy, Utensils, Clock, CheckCircle, Trash2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import {
+  Play,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  Flame,
+  Sparkles,
+  Trophy,
+  Utensils,
+  Clock,
+  CheckCircle,
+  Trash2,
+  Users,
+  Award,
+  DollarSign,
+  Tv,
+  ShieldAlert,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Maximize2,
+  Minimize2,
+  ShoppingBag,
+} from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -13,14 +38,22 @@ interface PixelKitchenProps {
   onScoreSubmitted?: (score: number) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Synthesizer Audio Engine (Retro 8-Bit Beeper)
+// ---------------------------------------------------------------------------
 class KitchenSynthAudio {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
 
   private init() {
     if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
     }
   }
 
@@ -51,18 +84,18 @@ class KitchenSynthAudio {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(120, this.ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(180, this.ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+      osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(200, this.ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.12);
+      osc.stop(this.ctx.currentTime + 0.1);
     } catch {}
   }
 
-  playDing() {
+  playBell() {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
@@ -103,308 +136,442 @@ class KitchenSynthAudio {
   }
 }
 
-type ItemType = 'raw_meat' | 'chopped_meat' | 'grilled_meat' | 'burnt_meat' | 'bun' | 'raw_fish' | 'chopped_fish' | 'grilled_fish' | 'raw_veg' | 'chopped_veg' | 'burger_plate' | 'salmon_bowl';
-
-interface Order {
+// ---------------------------------------------------------------------------
+// Types & Game Interfaces
+// ---------------------------------------------------------------------------
+interface RemotePlayer {
   id: string;
-  name: string;
-  type: 'burger' | 'salmon';
-  timeLeft: number;
-  maxTime: number;
-  reward: number;
+  n: string;
+  x: number;
+  y: number;
+  c: string;
+  h: string | null;
+  s: number;
+  host?: boolean;
+}
+
+interface ActiveOrder {
+  id: number;
+  n: string;
+  ing: string[];
+  tr: number;
+  mt: number;
+  pts: number;
+  tip: number;
+}
+
+interface KitchenState {
+  c: string;
+  sa: boolean;
+  se: boolean;
+  t: number;
+  p: RemotePlayer[];
+  st: { id: number; st: string; tm: number; it: string | null }[];
+  cb: { id: number; st: string; pr: number; it: string | null }[];
+  ap: { id: number; it: string[] }[];
+  o: ActiveOrder[];
+  stat: {
+    ordersServed: number;
+    ordersBurned: number;
+    ordersFailed: number;
+    totalTips: number;
+  };
 }
 
 export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: PixelKitchenProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [gameState, setGameState] = useState<'idle' | 'playing' | 'gameover'>('idle');
-  const [score, setScore] = useState(0);
-  const [reputation, setReputation] = useState(100);
-  const [streak, setStreak] = useState(0);
-  const [heldItem, setHeldItem] = useState<ItemType | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [showRewardedAd, setShowRewardedAd] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [hasUsedRevive, setHasUsedRevive] = useState(false);
-  const [isScoreSubmitted, setIsScoreSubmitted] = useState(false);
-
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const soundRef = useRef<KitchenSynthAudio>(new KitchenSynthAudio());
   const animFrameRef = useRef<number | null>(null);
 
-  // Chef Player in Top-Down Kitchen
-  const chefRef = useRef({
-    x: 400,
-    y: 300,
-    vx: 0,
-    vy: 0,
-    speed: 4.8,
-    direction: 'down',
-    walkCycle: 0,
-    heldItem: null as ItemType | null,
-  });
+  // Networking & Matchmaking State
+  const [networkMode, setNetworkMode] = useState<'lobby' | 'multiplayer' | 'solo'>('lobby');
+  const [roomCode, setRoomCode] = useState<string>('');
+  const [joinInputCode, setJoinInputCode] = useState<string>('');
+  const [playerName, setPlayerName] = useState<string>('Chef Rookie');
+  const [isHost, setIsHost] = useState<boolean>(false);
+  const [myPlayerId, setMyPlayerId] = useState<string>('');
+  const [lobbyError, setLobbyError] = useState<string>('');
 
-  // Interactive Kitchen Workstations (X, Y, W, H)
-  const stations = {
-    meatCrate: { x: 80, y: 100, w: 90, h: 70, name: '🥩 Raw Patty', type: 'crate_meat' },
-    fishCrate: { x: 80, y: 220, w: 90, h: 70, name: '🐟 Raw Salmon', type: 'crate_fish' },
-    vegCrate: { x: 80, y: 340, w: 90, h: 70, name: '🥬 Fresh Greens', type: 'crate_veg' },
-    bunCrate: { x: 80, y: 460, w: 90, h: 70, name: '🍞 Brioche Bun', type: 'crate_bun' },
+  // Shift & Economy State
+  const [shiftActive, setShiftActive] = useState<boolean>(false);
+  const [shiftEnded, setShiftEnded] = useState<boolean>(false);
+  const [shiftTimer, setShiftTimer] = useState<number>(180);
+  const [walletBalance, setWalletBalance] = useState<number>(250);
+  const [ordersServed, setOrdersServed] = useState<number>(0);
+  const [ordersBurned, setOrdersBurned] = useState<number>(0);
+  const [ordersFailed, setOrdersFailed] = useState<number>(0);
+  const [totalTipsEarned, setTotalTipsEarned] = useState<number>(0);
+  const [myScore, setMyScore] = useState<number>(0);
 
-    cuttingBoard: { x: 300, y: 100, w: 100, h: 70, progress: 0, maxProgress: 100, item: null as ItemType | null },
-    cuttingBoard2: { x: 420, y: 100, w: 100, h: 70, progress: 0, maxProgress: 100, item: null as ItemType | null },
+  // Daily Review Modal State
+  const [showDailyReview, setShowDailyReview] = useState<boolean>(false);
+  const [starRating, setStarRating] = useState<number>(5.0);
+  const [customerReview, setCustomerReview] = useState<string>('');
+  const [tipsDoubled, setTipsDoubled] = useState<boolean>(false);
+  const [inspectorBribed, setInspectorBribed] = useState<boolean>(false);
 
-    grill1: { x: 560, y: 100, w: 90, h: 70, status: 'empty' as 'empty' | 'cooking' | 'ready' | 'burnt', timer: 0, item: null as ItemType | null },
-    grill2: { x: 670, y: 100, w: 90, h: 70, status: 'empty' as 'empty' | 'cooking' | 'ready' | 'burnt', timer: 0, item: null as ItemType | null },
+  // Monetization & Modals
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [showRewardedAd, setShowRewardedAd] = useState<boolean>(false);
+  const [adRewardAction, setAdRewardAction] = useState<'double_tips' | 'bribe_inspector'>('double_tips');
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
 
-    plateTable: { x: 340, y: 460, w: 120, h: 70, items: [] as ItemType[] },
-    deliveryWindow: { x: 520, y: 460, w: 140, h: 70 },
-    trashCan: { x: 680, y: 460, w: 70, h: 70 },
+  // Client Prediction & Movement
+  const localPosRef = useRef<{ x: number; y: number; vx: number; vy: number }>({ x: 350, y: 320, vx: 0, vy: 0 });
+  const keysPressedRef = useRef<{ [key: string]: boolean }>({});
+  const joystickDirRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastStateRef = useRef<KitchenState | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Procedural Customer Reviews Generator
+  // ---------------------------------------------------------------------------
+  const generateCustomerReview = (stars: number, served: number, burned: number) => {
+    if (stars >= 4.5) {
+      const reviews = [
+        '“Gordon Ramsay wept tears of pure joy. The patty was grilled to divine perfection!” ⭐⭐⭐⭐⭐',
+        '“Best burger in Pixel City! The chefs operated like a Michelin-starred pit crew.” ⭐⭐⭐⭐⭐',
+        '“Crispy lettuce, melted cheese, lightning-fast delivery. 10/10 dining experience!” ⭐⭐⭐⭐⭐',
+      ];
+      return reviews[Math.floor(Math.random() * reviews.length)];
+    }
+    if (stars >= 3.5) {
+      const reviews = [
+        '“Tasty burgers, but the kitchen was pure cartoon mayhem. Entertaining lunch!” ⭐⭐⭐⭐',
+        '“Food was hot and fresh. Lost one star because the chef threw a tomato at my head.” ⭐⭐⭐⭐',
+        '“Solid meal! Great teamwork on the stoves, will visit again during lunch rush.” ⭐⭐⭐⭐',
+      ];
+      return reviews[Math.floor(Math.random() * reviews.length)];
+    }
+    if (stars >= 2.5) {
+      const reviews = [
+        '“The burger was decent, but my table was dangerously close to the flaming stove.” ⭐⭐⭐',
+        '“Found an un-chopped tomato rolling across the floor. Passionate kitchen though.” ⭐⭐⭐',
+        '“A bit chaotic. The fire alarm went off twice, but the cheese was well melted.” ⭐⭐⭐',
+      ];
+      return reviews[Math.floor(Math.random() * reviews.length)];
+    }
+    const badReviews = [
+      '“Health Inspector Nightmare! Kitchen was engulfed in smoke and burnt patties.” ⭐',
+      '“I waited 20 minutes and received a single slice of cheese on a plate. F-tier.” ⭐',
+      '“The chef looked panicked and was running in circles with raw meat. Avoid!” ⭐',
+    ];
+    return badReviews[Math.floor(Math.random() * badReviews.length)];
   };
 
-  const stationsRef = useRef(stations);
-  const keysRef = useRef<Record<string, boolean>>({});
-  const particlesRef = useRef<{ x: number; y: number; vx: number; vy: number; life: number; color: string }[]>([]);
-  const floatTextsRef = useRef<{ id: number; x: number; y: number; text: string; color: string; life: number; vy: number }[]>([]);
-
-  const addFloatText = (text: string, x: number, y: number, color = '#fbbf24') => {
-    floatTextsRef.current.push({
-      id: Date.now() + Math.random(),
-      x,
-      y,
-      text,
-      color,
-      life: 40,
-      vy: -1.5,
+  // ---------------------------------------------------------------------------
+  // Socket.io Connection & Matchmaking
+  // ---------------------------------------------------------------------------
+  const initSocket = () => {
+    if (socketRef.current) return socketRef.current;
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
     });
+
+    socket.on('connect', () => {
+      setMyPlayerId(socket.id || '');
+    });
+
+    socket.on('room_created', ({ roomCode: code, state }) => {
+      setRoomCode(code);
+      setIsHost(true);
+      setNetworkMode('multiplayer');
+      lastStateRef.current = state;
+    });
+
+    socket.on('room_joined', ({ roomCode: code, state }) => {
+      setRoomCode(code);
+      setIsHost(false);
+      setNetworkMode('multiplayer');
+      lastStateRef.current = state;
+    });
+
+    socket.on('join_error', ({ message }) => {
+      setLobbyError(message || 'Failed to join room.');
+    });
+
+    socket.on('game_tick', (state: KitchenState) => {
+      lastStateRef.current = state;
+      setShiftActive(state.sa);
+      setShiftTimer(state.t);
+      setOrdersServed(state.stat.ordersServed);
+      setOrdersBurned(state.stat.ordersBurned);
+      setOrdersFailed(state.stat.ordersFailed);
+      setTotalTipsEarned(state.stat.totalTips);
+
+      // Check for Shift End Trigger
+      if (state.se && !shiftEnded) {
+        setShiftEnded(true);
+        triggerDailyReview(state.stat.ordersServed, state.stat.ordersBurned, state.stat.ordersFailed, state.stat.totalTips);
+      }
+    });
+
+    socket.on('order_served_success', ({ recipeName, tips }) => {
+      soundRef.current.playBell();
+      confetti({ particleCount: 35, spread: 45 });
+    });
+
+    socketRef.current = socket;
+    return socket;
   };
 
-  const spawnOrder = useCallback(() => {
-    const isBurger = Math.random() > 0.5;
-    const newOrd: Order = {
-      id: 'ord-' + Date.now(),
-      name: isBurger ? '🍔 Truffle Wagyu Burger' : '🍲 Crispy Salmon Bowl',
-      type: isBurger ? 'burger' : 'salmon',
-      timeLeft: 24,
-      maxTime: 24,
-      reward: isBurger ? 450 : 500,
+  // Host Online Room
+  const handleHostGame = () => {
+    setLobbyError('');
+    const socket = initSocket();
+    socket.emit('create_room', { playerName });
+  };
+
+  // Join Online Room
+  const handleJoinGame = () => {
+    if (!joinInputCode || joinInputCode.length < 4) {
+      setLobbyError('Please enter a valid 4-character room code.');
+      return;
+    }
+    setLobbyError('');
+    const socket = initSocket();
+    socket.emit('join_room', { roomCode: joinInputCode.toUpperCase(), playerName });
+  };
+
+  // Start Shift
+  const handleStartShift = () => {
+    if (networkMode === 'multiplayer' && socketRef.current) {
+      socketRef.current.emit('start_shift');
+    } else {
+      // Solo Mode Fallback
+      setShiftActive(true);
+      setShiftEnded(false);
+      setShiftTimer(180);
+      setOrdersServed(0);
+      setOrdersBurned(0);
+      setOrdersFailed(0);
+      setTotalTipsEarned(0);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Daily Review & Payout Loop
+  // ---------------------------------------------------------------------------
+  const triggerDailyReview = async (served: number, burned: number, failed: number, tips: number) => {
+    setShowDailyReview(true);
+    setTipsDoubled(false);
+    setInspectorBribed(false);
+
+    // Calculate Star Rating
+    const totalOrders = served + failed + burned * 0.5;
+    let rating = 5.0;
+    if (totalOrders > 0) {
+      const penalty = (burned * 1.2 + failed * 0.8) / Math.max(1, served);
+      rating = Math.max(1.0, Math.min(5.0, Number((5.0 - penalty * 1.5).toFixed(1))));
+    } else {
+      rating = 2.0;
+    }
+    setStarRating(rating);
+
+    const reviewText = generateCustomerReview(rating, served, burned);
+    setCustomerReview(reviewText);
+
+    // Process Shift Payout via Backend Transaction Route
+    try {
+      const res = await fetch('/api/kitchen/payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomCode: roomCode || 'SOLO',
+          playerId: playerName,
+          ordersServed: served,
+          ordersBurned: burned,
+          ordersFailed: failed,
+          starRating: rating,
+          tipsEarned: tips,
+          customerReview: reviewText,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWalletBalance(data.newBalance);
+      }
+    } catch {}
+  };
+
+  // Monetization Rewarded Ad Callbacks
+  const handleWatchRewardedAdForDoubleTips = () => {
+    setAdRewardAction('double_tips');
+    setShowRewardedAd(true);
+  };
+
+  const handleBribeInspectorAd = () => {
+    setAdRewardAction('bribe_inspector');
+    setShowRewardedAd(true);
+  };
+
+  const handleAdRewardEarned = async () => {
+    setShowRewardedAd(false);
+    if (adRewardAction === 'double_tips' && !tipsDoubled) {
+      setTipsDoubled(true);
+      setTotalTipsEarned((t) => t * 2);
+      confetti({ particleCount: 100, spread: 80 });
+
+      // Record double tip payout in MySQL
+      try {
+        const res = await fetch('/api/kitchen/payout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomCode: roomCode || 'SOLO',
+            playerId: playerName,
+            ordersServed,
+            ordersBurned,
+            ordersFailed,
+            starRating,
+            tipsEarned: totalTipsEarned,
+            isDoubled: true,
+            customerReview,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) setWalletBalance(data.newBalance);
+      } catch {}
+    } else if (adRewardAction === 'bribe_inspector' && !inspectorBribed) {
+      setInspectorBribed(true);
+      setStarRating(5.0);
+      setCustomerReview('“The Health Inspector smiled, stamped a 5-STAR GRADE A, and enjoyed a free lunch.” ⭐⭐⭐⭐⭐');
+      confetti({ particleCount: 80, spread: 60 });
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Action Handlers (Chop, Cook, Plate, Serve, Toss)
+  // ---------------------------------------------------------------------------
+  const emitAction = (action: string, payload: any = {}) => {
+    if (socketRef.current) {
+      socketRef.current.emit('kitchen_action', { action, payload });
+    }
+  };
+
+  const handleActionButton = (type: 'interact' | 'cook' | 'toss') => {
+    const p = localPosRef.current;
+    if (type === 'toss') {
+      emitAction('toss_trash');
+      return;
+    }
+
+    // Near Ingredient Dispenser?
+    if (p.y > 480) {
+      if (p.x < 240) emitAction('pick_ingredient', { ingredient: 'bun' });
+      else if (p.x < 360) emitAction('pick_ingredient', { ingredient: 'raw_patty' });
+      else if (p.x < 480) emitAction('pick_ingredient', { ingredient: 'raw_lettuce' });
+      else if (p.x < 600) emitAction('pick_ingredient', { ingredient: 'raw_tomato' });
+      else emitAction('pick_ingredient', { ingredient: 'cheese' });
+      return;
+    }
+
+    // Near Stoves? (y < 240, x ~ 220-420)
+    if (p.y < 240 && p.x < 440) {
+      const stoveIdx = p.x < 280 ? 0 : p.x < 360 ? 1 : 2;
+      emitAction('interact_stove', { stoveId: stoveIdx });
+      soundRef.current.playSizzle();
+      return;
+    }
+
+    // Near Cutting Boards? (y < 240, x ~ 480-640)
+    if (p.y < 240 && p.x >= 480) {
+      const boardIdx = p.x < 560 ? 0 : 1;
+      emitAction('interact_chopping', { boardId: boardIdx });
+      soundRef.current.playChop();
+      return;
+    }
+
+    // Near Assembly Plates? (y ~ 400-480, x ~ 300-480)
+    if (p.y >= 380 && p.y <= 480 && p.x >= 280 && p.x <= 500) {
+      const plateIdx = p.x < 380 ? 0 : 1;
+      emitAction('interact_plate', { plateId: plateIdx });
+      return;
+    }
+
+    // Near Service Delivery Window? (x < 150)
+    if (p.x < 180) {
+      emitAction('serve_order');
+      return;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Input Listeners (WASD + Arrows)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressedRef.current[e.key.toLowerCase()] = true;
+      if (e.key === ' ' || e.key.toLowerCase() === 'e') {
+        handleActionButton('interact');
+      } else if (e.key.toLowerCase() === 'q') {
+        handleActionButton('toss');
+      }
     };
-    setOrders((prev) => (prev.length < 3 ? [...prev, newOrd] : prev));
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressedRef.current[e.key.toLowerCase()] = false;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
-  // Player Interaction Trigger
-  const interactWithNearbyStation = useCallback(() => {
-    const chef = chefRef.current;
-    const st = stationsRef.current;
-
-    // 1. Meat Crate
-    if (Math.hypot(chef.x - (st.meatCrate.x + 45), chef.y - (st.meatCrate.y + 35)) < 65) {
-      if (!chef.heldItem) {
-        chef.heldItem = 'raw_meat';
-        setHeldItem('raw_meat');
-        addFloatText('Grabbed Raw Patty', chef.x, chef.y - 20, '#fbbf24');
-      }
-      return;
-    }
-
-    // 2. Fish Crate
-    if (Math.hypot(chef.x - (st.fishCrate.x + 45), chef.y - (st.fishCrate.y + 35)) < 65) {
-      if (!chef.heldItem) {
-        chef.heldItem = 'raw_fish';
-        setHeldItem('raw_fish');
-        addFloatText('Grabbed Raw Salmon', chef.x, chef.y - 20, '#38bdf8');
-      }
-      return;
-    }
-
-    // 3. Veg Crate
-    if (Math.hypot(chef.x - (st.vegCrate.x + 45), chef.y - (st.vegCrate.y + 35)) < 65) {
-      if (!chef.heldItem) {
-        chef.heldItem = 'raw_veg';
-        setHeldItem('raw_veg');
-        addFloatText('Grabbed Fresh Greens', chef.x, chef.y - 20, '#34d399');
-      }
-      return;
-    }
-
-    // 4. Bun Crate
-    if (Math.hypot(chef.x - (st.bunCrate.x + 45), chef.y - (st.bunCrate.y + 35)) < 65) {
-      if (!chef.heldItem) {
-        chef.heldItem = 'bun';
-        setHeldItem('bun');
-        addFloatText('Grabbed Brioche Bun', chef.x, chef.y - 20, '#f59e0b');
-      }
-      return;
-    }
-
-    // 5. Cutting Board 1
-    if (Math.hypot(chef.x - (st.cuttingBoard.x + 50), chef.y - (st.cuttingBoard.y + 35)) < 70) {
-      const cb = st.cuttingBoard;
-      if (!cb.item && (chef.heldItem === 'raw_meat' || chef.heldItem === 'raw_fish' || chef.heldItem === 'raw_veg')) {
-        cb.item = chef.heldItem;
-        cb.progress = 0;
-        chef.heldItem = null;
-        setHeldItem(null);
-      } else if (cb.item && cb.progress < cb.maxProgress) {
-        // Chop!
-        cb.progress += 25;
-        soundRef.current.playChop();
-        addFloatText(`🔪 CHOP ${cb.progress}%`, cb.x + 50, cb.y - 10, '#38bdf8');
-        if (cb.progress >= cb.maxProgress) {
-          if (cb.item === 'raw_meat') cb.item = 'chopped_meat';
-          if (cb.item === 'raw_fish') cb.item = 'chopped_fish';
-          if (cb.item === 'raw_veg') cb.item = 'chopped_veg';
-        }
-      } else if (cb.item && cb.progress >= cb.maxProgress && !chef.heldItem) {
-        chef.heldItem = cb.item;
-        setHeldItem(cb.item);
-        cb.item = null;
-        cb.progress = 0;
-      }
-      return;
-    }
-
-    // 6. Grill 1
-    if (Math.hypot(chef.x - (st.grill1.x + 45), chef.y - (st.grill1.y + 35)) < 70) {
-      const g = st.grill1;
-      if (g.status === 'empty' && (chef.heldItem === 'chopped_meat' || chef.heldItem === 'chopped_fish' || chef.heldItem === 'raw_meat')) {
-        g.item = chef.heldItem;
-        g.status = 'cooking';
-        g.timer = 0;
-        chef.heldItem = null;
-        setHeldItem(null);
-      } else if (g.status === 'ready' && !chef.heldItem) {
-        chef.heldItem = g.item === 'chopped_fish' ? 'grilled_fish' : 'grilled_meat';
-        setHeldItem(chef.heldItem);
-        g.status = 'empty';
-        g.item = null;
-        g.timer = 0;
-        soundRef.current.playSizzle();
-        addFloatText('🥩 Collected Sizzling Patty!', chef.x, chef.y - 20, '#10b981');
-      } else if (g.status === 'burnt') {
-        g.status = 'empty';
-        g.item = null;
-        soundRef.current.playBurn();
-        addFloatText('Cleaned Burnt Ashes', chef.x, chef.y - 20, '#ef4444');
-      }
-      return;
-    }
-
-    // 7. Plate / Assembly Station
-    if (Math.hypot(chef.x - (st.plateTable.x + 60), chef.y - (st.plateTable.y + 35)) < 75) {
-      const pt = st.plateTable;
-      if (chef.heldItem) {
-        pt.items.push(chef.heldItem);
-        addFloatText(`Added ${chef.heldItem}`, pt.x + 60, pt.y - 15, '#38bdf8');
-        chef.heldItem = null;
-        setHeldItem(null);
-
-        // Check if assembled into Burger
-        const hasBun = pt.items.includes('bun');
-        const hasMeat = pt.items.includes('grilled_meat') || pt.items.includes('raw_meat');
-        const hasVeg = pt.items.includes('chopped_veg') || pt.items.includes('raw_veg');
-
-        if (hasBun && hasMeat) {
-          chef.heldItem = 'burger_plate';
-          setHeldItem('burger_plate');
-          pt.items = [];
-          soundRef.current.playDing();
-          addFloatText('🍔 Truffle Burger Assembled!', chef.x, chef.y - 30, '#10b981');
-        } else if (pt.items.includes('grilled_fish') && hasVeg) {
-          chef.heldItem = 'salmon_bowl';
-          setHeldItem('salmon_bowl');
-          pt.items = [];
-          soundRef.current.playDing();
-          addFloatText('🍲 Salmon Bowl Assembled!', chef.x, chef.y - 30, '#10b981');
-        }
-      }
-      return;
-    }
-
-    // 8. Delivery Service Window
-    if (Math.hypot(chef.x - (st.deliveryWindow.x + 70), chef.y - (st.deliveryWindow.y + 35)) < 80) {
-      if (chef.heldItem === 'burger_plate' || chef.heldItem === 'salmon_bowl') {
-        const orderIdx = orders.findIndex(
-          (o) => (chef.heldItem === 'burger_plate' && o.type === 'burger') || (chef.heldItem === 'salmon_bowl' && o.type === 'salmon')
-        );
-
-        if (orderIdx >= 0) {
-          const ord = orders[orderIdx];
-          const speedBonus = ord.timeLeft > 10 ? 300 : 150;
-          const totalPts = ord.reward + speedBonus + streak * 50;
-
-          soundRef.current.playDing();
-          confetti({ particleCount: 60, spread: 60 });
-          addFloatText(`+$${totalPts} VIP EXPEDITE!`, chef.x, chef.y - 40, '#10b981');
-
-          setScore((s) => s + totalPts);
-          setStreak((stk) => stk + 1);
-          setOrders((prev) => prev.filter((_, i) => i !== orderIdx));
-          chef.heldItem = null;
-          setHeldItem(null);
-        } else {
-          addFloatText('Wrong Ticket!', chef.x, chef.y - 20, '#ef4444');
-        }
-      }
-      return;
-    }
-
-    // 9. Trash Can
-    if (Math.hypot(chef.x - (st.trashCan.x + 35), chef.y - (st.trashCan.y + 35)) < 60) {
-      if (chef.heldItem) {
-        addFloatText('Item Discarded', chef.x, chef.y - 20, '#ef4444');
-        chef.heldItem = null;
-        setHeldItem(null);
-      }
-    }
-  }, [orders, streak]);
-
-  // Main 60 FPS Canvas Game Loop
-  const gameLoop = useCallback(() => {
+  // ---------------------------------------------------------------------------
+  // Canvas Game Render Loop (Retro MS Paint Aesthetic)
+  // ---------------------------------------------------------------------------
+  const renderKitchen = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
-    const chef = chefRef.current;
-    const st = stationsRef.current;
+    const width = 800;
+    const height = 600;
 
-    // 1. Chef Movement
-    let mx = 0;
-    let my = 0;
-    if (keysRef.current['ArrowLeft'] || keysRef.current['KeyA']) {
-      mx -= 1;
-      chef.direction = 'left';
-    }
-    if (keysRef.current['ArrowRight'] || keysRef.current['KeyD']) {
-      mx += 1;
-      chef.direction = 'right';
-    }
-    if (keysRef.current['ArrowUp'] || keysRef.current['KeyW']) {
-      my -= 1;
-      chef.direction = 'up';
-    }
-    if (keysRef.current['ArrowDown'] || keysRef.current['KeyS']) {
-      my += 1;
-      chef.direction = 'down';
+    // 1. Client Movement Prediction & Velocity Update
+    const keys = keysPressedRef.current;
+    let dx = 0;
+    let dy = 0;
+    if (keys['w'] || keys['arrowup']) dy -= 1;
+    if (keys['s'] || keys['arrowdown']) dy += 1;
+    if (keys['a'] || keys['arrowleft']) dx -= 1;
+    if (keys['d'] || keys['arrowright']) dx += 1;
+
+    if (joystickDirRef.current.x !== 0 || joystickDirRef.current.y !== 0) {
+      dx = joystickDirRef.current.x;
+      dy = joystickDirRef.current.y;
     }
 
-    if (mx !== 0 || my !== 0) {
-      chef.walkCycle += 0.2;
-      chef.x += mx * chef.speed;
-      chef.y += my * chef.speed;
+    const speed = 4.2;
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.hypot(dx, dy);
+      localPosRef.current.x = Math.max(90, Math.min(710, localPosRef.current.x + (dx / len) * speed));
+      localPosRef.current.y = Math.max(140, Math.min(510, localPosRef.current.y + (dy / len) * speed));
+
+      if (socketRef.current) {
+        socketRef.current.emit('player_move', {
+          x: localPosRef.current.x,
+          y: localPosRef.current.y,
+          vx: dx,
+          vy: dy,
+        });
+      }
     }
 
-    // Boundaries
-    chef.x = Math.max(180, Math.min(width - 40, chef.x));
-    chef.y = Math.max(180, Math.min(420, chef.y));
-
-    // 2. Clear & Warm Kitchen Floor Tiles
-    ctx.fillStyle = '#1e1b2e';
+    // 2. Retro MS-Paint Tiled Kitchen Floor
+    ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = '#2a243d';
+    // Checkerboard Tile Grid
+    ctx.fillStyle = '#e2e8f0';
     for (let x = 0; x < width; x += 40) {
       for (let y = 0; y < height; y += 40) {
         if ((x / 40 + y / 40) % 2 === 0) {
@@ -413,432 +580,488 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       }
     }
 
-    // 3. Draw Stations
-    // Ingredient Crates
-    const crates = [st.meatCrate, st.fishCrate, st.vegCrate, st.bunCrate];
-    crates.forEach((c) => {
-      ctx.fillStyle = '#3f2d24';
-      ctx.fillRect(c.x, c.y, c.w, c.h);
-      ctx.strokeStyle = '#f59e0b';
+    // Thick MS-Paint Retro Border Walls
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(4, 4, width - 8, height - 8);
+
+    // 3. Top Kitchen Counter: Stoves & Cutting Boards
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(180, 100, 460, 80);
+    ctx.strokeRect(180, 100, 460, 80);
+
+    const state = lastStateRef.current;
+
+    // Render Stoves (3 Units)
+    const stoves = state ? state.st : [{ id: 0, st: 'empty', tm: 0, it: null }, { id: 1, st: 'empty', tm: 0, it: null }, { id: 2, st: 'empty', tm: 0, it: null }];
+    stoves.forEach((stove, idx) => {
+      const sx = 200 + idx * 75;
+      const sy = 110;
+
+      ctx.fillStyle = stove.st === 'burnt' ? '#1e293b' : stove.st === 'ready' ? '#f59e0b' : stove.st === 'cooking' ? '#ef4444' : '#64748b';
+      ctx.fillRect(sx, sy, 60, 60);
+      ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 3;
-      ctx.strokeRect(c.x, c.y, c.w, c.h);
+      ctx.strokeRect(sx, sy, 60, 60);
+
+      // Stove Grate Rings
+      ctx.beginPath();
+      ctx.arc(sx + 30, sy + 30, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = stove.st === 'cooking' ? '#ffffff' : '#334155';
+      ctx.stroke();
+
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 12px monospace';
+      ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(c.name, c.x + c.w / 2, c.y + c.h / 2 + 4);
+      ctx.fillText(stove.st === 'cooking' ? '🔥 SIZZLE' : stove.st === 'ready' ? '✨ READY' : stove.st === 'burnt' ? '⚠ BURNT' : 'STOVE', sx + 30, sy + 34);
     });
 
-    // Cutting Board
-    const cbs = [st.cuttingBoard, st.cuttingBoard2];
-    cbs.forEach((cb, idx) => {
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(cb.x, cb.y, cb.w, cb.h);
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(cb.x, cb.y, cb.w, cb.h);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(cb.item ? `${cb.item} (${cb.progress}%)` : `🔪 Chop Board ${idx + 1}`, cb.x + cb.w / 2, cb.y + 30);
+    // Render Cutting Boards (2 Units)
+    const boards = state ? state.cb : [{ id: 0, st: 'empty', pr: 0, it: null }, { id: 1, st: 'empty', pr: 0, it: null }];
+    boards.forEach((board, idx) => {
+      const bx = 470 + idx * 80;
+      const by = 110;
 
-      // Chop progress bar
-      if (cb.progress > 0) {
-        ctx.fillStyle = '#0284c7';
-        ctx.fillRect(cb.x + 10, cb.y + 45, (cb.progress / 100) * (cb.w - 20), 12);
-        ctx.strokeStyle = '#38bdf8';
-        ctx.strokeRect(cb.x + 10, cb.y + 45, cb.w - 20, 12);
-      }
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(bx, by, 65, 60);
+      ctx.strokeRect(bx, by, 65, 60);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(board.st === 'chopping' ? `🔪 (${board.pr}/5)` : board.st === 'chopped' ? '🥗 DONE' : 'CHOP', bx + 32, by + 34);
     });
 
-    // Grills
-    const grills = [st.grill1, st.grill2];
-    grills.forEach((g, idx) => {
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(g.x, g.y, g.w, g.h);
-      ctx.strokeStyle = g.status === 'burnt' ? '#ef4444' : g.status === 'ready' ? '#10b981' : '#f59e0b';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(g.x, g.y, g.w, g.h);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        g.status === 'ready' ? 'READY! 🔥' : g.status === 'burnt' ? 'BURNT! 💀' : g.status === 'cooking' ? `Sizzling ${Math.floor(g.timer)}%` : `🔥 Grill ${idx + 1}`,
-        g.x + g.w / 2,
-        g.y + 30
-      );
+    // 4. Assembly Tables & Plating Counters
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(280, 380, 240, 70);
+    ctx.strokeRect(280, 380, 240, 70);
 
-      if (g.status === 'cooking') {
-        ctx.fillStyle = '#f59e0b';
-        ctx.fillRect(g.x + 10, g.y + 45, (g.timer / 100) * (g.w - 20), 12);
-        ctx.strokeStyle = '#f59e0b';
-        ctx.strokeRect(g.x + 10, g.y + 45, g.w - 20, 12);
-      }
+    const plates = state ? state.ap : [{ id: 0, it: [] }, { id: 1, it: [] }];
+    plates.forEach((p, idx) => {
+      const px = 320 + idx * 100;
+      const py = 415;
+
+      ctx.beginPath();
+      ctx.arc(px, py, 24, 0, Math.PI * 2);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fill();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.it.length > 0 ? `PLATE (${p.it.length})` : 'EMPTY', px, py + 3);
     });
 
-    // Assembly Counter
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(st.plateTable.x, st.plateTable.y, st.plateTable.w, st.plateTable.h);
-    ctx.strokeStyle = '#a855f7';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(st.plateTable.x, st.plateTable.y, st.plateTable.w, st.plateTable.h);
+    // 5. Left Service Counter & Delivery Hatch
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(10, 180, 100, 240);
+    ctx.strokeRect(10, 180, 100, 240);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('DELIVERY', 60, 280);
+    ctx.fillText('HATCH', 60, 300);
+
+    // 6. Right Trash Bin
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(690, 280, 80, 80);
+    ctx.strokeRect(690, 280, 80, 80);
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`🍽️ Assembly Plate (${st.plateTable.items.length})`, st.plateTable.x + st.plateTable.w / 2, st.plateTable.y + 38);
+    ctx.fillText('🗑️ TRASH', 730, 325);
 
-    // Delivery Window
-    ctx.fillStyle = '#064e3b';
-    ctx.fillRect(st.deliveryWindow.x, st.deliveryWindow.y, st.deliveryWindow.w, st.deliveryWindow.h);
-    ctx.strokeStyle = '#10b981';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(st.deliveryWindow.x, st.deliveryWindow.y, st.deliveryWindow.w, st.deliveryWindow.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('🛎️ VIP EXPEDITE', st.deliveryWindow.x + st.deliveryWindow.w / 2, st.deliveryWindow.y + 38);
+    // 7. Bottom Ingredient Dispensers (5 Crates)
+    const ingredients = [
+      { name: 'BUN', color: '#f59e0b', x: 120 },
+      { name: 'PATTY', color: '#dc2626', x: 240 },
+      { name: 'LETTUCE', color: '#16a34a', x: 360 },
+      { name: 'TOMATO', color: '#ef4444', x: 480 },
+      { name: 'CHEESE', color: '#eab308', x: 600 },
+    ];
 
-    // Trash Can
-    ctx.fillStyle = '#450a0a';
-    ctx.fillRect(st.trashCan.x, st.trashCan.y, st.trashCan.w, st.trashCan.h);
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(st.trashCan.x, st.trashCan.y, st.trashCan.w, st.trashCan.h);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('🗑️ Trash', st.trashCan.x + st.trashCan.w / 2, st.trashCan.y + 38);
-
-    // 4. Draw Animated Chef Sprite
-    ctx.save();
-    ctx.translate(chef.x, chef.y);
-
-    // Chef Shadow
-    ctx.beginPath();
-    ctx.ellipse(0, 18, 16, 6, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.fill();
-
-    // Chef Body / Uniform
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-12, -10, 24, 24);
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-12, -10, 24, 24);
-
-    // Red Scarf
-    ctx.fillStyle = '#ef4444';
-    ctx.fillRect(-8, -10, 16, 4);
-
-    // Chef Head
-    ctx.beginPath();
-    ctx.arc(0, -18, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#fde047';
-    ctx.fill();
-
-    // Chef Toque (Hat)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-8, -36, 16, 12);
-    ctx.beginPath();
-    ctx.arc(0, -36, 10, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Held Item over head
-    if (chef.heldItem) {
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 16px monospace';
+    ingredients.forEach((ing) => {
+      ctx.fillStyle = ing.color;
+      ctx.fillRect(ing.x, 520, 100, 60);
+      ctx.strokeRect(ing.x, 520, 100, 60);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px monospace';
       ctx.textAlign = 'center';
-      const itemIcons: Record<string, string> = {
-        raw_meat: '🥩',
-        chopped_meat: '🥩',
-        grilled_meat: '🔥🥩',
-        raw_fish: '🐟',
-        chopped_fish: '🐟',
-        grilled_fish: '🔥🐟',
-        raw_veg: '🥬',
-        chopped_veg: '🥗',
-        bun: '🍞',
-        burger_plate: '🍔',
-        salmon_bowl: '🍲',
-      };
-      ctx.fillText(itemIcons[chef.heldItem] || '📦', 0, -48);
-    }
-    ctx.restore();
+      ctx.fillText(ing.name, ing.x + 50, 555);
+    });
 
-    // 5. Floating Texts
-    for (let i = floatTextsRef.current.length - 1; i >= 0; i--) {
-      const ft = floatTextsRef.current[i];
-      ft.y += ft.vy;
-      ft.life -= 1;
+    // 8. Render Other Connected Remote Chefs
+    if (state && state.p) {
+      state.p.forEach((player) => {
+        if (player.id !== myPlayerId) {
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, 20, 0, Math.PI * 2);
+          ctx.fillStyle = player.c;
+          ctx.fill();
+          ctx.strokeStyle = '#0f172a';
+          ctx.lineWidth = 3.5;
+          ctx.stroke();
 
-      ctx.save();
-      ctx.font = 'bold 13px monospace';
-      ctx.fillStyle = ft.color;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = ft.color;
-      ctx.textAlign = 'center';
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ctx.restore();
+          // Chef Hat
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(player.x - 12, player.y - 32, 24, 16);
+          ctx.strokeRect(player.x - 12, player.y - 32, 24, 16);
 
-      if (ft.life <= 0) floatTextsRef.current.splice(i, 1);
-    }
+          ctx.fillStyle = '#0f172a';
+          ctx.font = 'bold 10px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(player.n, player.x, player.y - 38);
 
-    if (gameState === 'playing') {
-      animFrameRef.current = requestAnimationFrame(gameLoop);
-    }
-  }, [gameState]);
-
-  // Timers & Orders Loop
-  useEffect(() => {
-    if (gameState !== 'playing') return;
-
-    const interval = setInterval(() => {
-      // Grill sizzle progression
-      const st = stationsRef.current;
-      [st.grill1, st.grill2].forEach((g) => {
-        if (g.status === 'cooking') {
-          g.timer += 15;
-          if (g.timer >= 100 && g.timer < 180) {
-            g.status = 'ready';
-          } else if (g.timer >= 180) {
-            g.status = 'burnt';
-            soundRef.current.playBurn();
+          if (player.h) {
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = 'bold 9px monospace';
+            ctx.fillText(`[${player.h.replace('raw_', '')}]`, player.x, player.y + 32);
           }
         }
       });
-
-      // Ticket Countdowns
-      setOrders((prev) => {
-        const updated = prev.map((o) => ({ ...o, timeLeft: o.timeLeft - 1 }));
-        const expired = updated.filter((o) => o.timeLeft <= 0);
-
-        if (expired.length > 0) {
-          soundRef.current.playBurn();
-          setReputation((r) => {
-            const next = r - expired.length * 25;
-            if (next <= 0) setGameState('gameover');
-            return Math.max(0, next);
-          });
-          setStreak(0);
-        }
-
-        return updated.filter((o) => o.timeLeft > 0);
-      });
-
-      // Spawn orders
-      if (Math.random() < 0.35) {
-        spawnOrder();
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [gameState, spawnOrder]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keysRef.current[e.code] = true;
-      if (e.code === 'Space' || e.code === 'KeyE' || e.code === 'Enter') {
-        e.preventDefault();
-        interactWithNearbyStation();
-      }
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysRef.current[e.code] = false;
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [interactWithNearbyStation]);
-
-  useEffect(() => {
-    if (gameState === 'playing') {
-      animFrameRef.current = requestAnimationFrame(gameLoop);
     }
+
+    // 9. Render Local Player Chef
+    const myPos = localPosRef.current;
+    ctx.beginPath();
+    ctx.arc(myPos.x, myPos.y, 22, 0, Math.PI * 2);
+    ctx.fillStyle = '#f43f5e';
+    ctx.fill();
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Head Chef Hat
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(myPos.x - 14, myPos.y - 36, 28, 18);
+    ctx.strokeRect(myPos.x - 14, myPos.y - 36, 28, 18);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${playerName} (YOU)`, myPos.x, myPos.y - 42);
+
+    animFrameRef.current = requestAnimationFrame(renderKitchen);
+  }, [playerName, myPlayerId]);
+
+  useEffect(() => {
+    animFrameRef.current = requestAnimationFrame(renderKitchen);
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [gameState, gameLoop]);
+  }, [renderKitchen]);
 
-  const startGame = () => {
-    setScore(0);
-    setReputation(100);
-    setStreak(0);
-    setHeldItem(null);
-    setOrders([]);
-    chefRef.current.x = 400;
-    chefRef.current.y = 300;
-    chefRef.current.heldItem = null;
-    stationsRef.current.grill1.status = 'empty';
-    stationsRef.current.grill1.timer = 0;
-    stationsRef.current.grill2.status = 'empty';
-    stationsRef.current.grill2.timer = 0;
-    stationsRef.current.cuttingBoard.progress = 0;
-    stationsRef.current.cuttingBoard.item = null;
-    stationsRef.current.plateTable.items = [];
-    floatTextsRef.current = [];
-    setIsScoreSubmitted(false);
-    setHasUsedRevive(false);
-    spawnOrder();
-    setGameState('playing');
-  };
-
-  const handleSubmitScore = () => {
-    if (isScoreSubmitted) return;
-    if (!platformStore.isLoggedIn()) {
-      platformStore.setPendingScore(gameId, score);
-      setShowAuthModal(true);
-      return;
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
     }
-    platformStore.submitScore(gameId, score);
-    setIsScoreSubmitted(true);
-    confetti({ particleCount: 100, spread: 80 });
-    if (onScoreSubmitted) onScoreSubmitted(score);
   };
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-amber-500/40 bg-zinc-950 p-4 shadow-2xl space-y-3">
-      {/* Top HUD */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-xl bg-zinc-900/90 p-3 border border-zinc-800">
-        <div>
-          <span className="text-[10px] font-mono uppercase text-zinc-400">Score & Tips</span>
-          <div className="text-xl font-black font-mono text-amber-400">${score.toLocaleString()}</div>
-        </div>
-
-        <div>
-          <span className="text-[10px] font-mono uppercase text-zinc-400">Michelin Streak</span>
-          <div className="text-lg font-black font-mono text-emerald-400">
-            {streak > 1 ? `${streak}X CHEF STREAK!` : '1X BASE'}
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded-2xl border-4 border-black bg-amber-50 p-4 shadow-2xl space-y-3 font-mono select-none"
+    >
+      {/* ---------------------------------------------------- */}
+      {/* MS Paint Retro Title & Matchmaking Header            */}
+      {/* ---------------------------------------------------- */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-black pb-3 bg-yellow-300 p-3 rounded-xl border-black shadow-md">
+        <div className="flex items-center gap-2">
+          <div className="bg-black text-white px-2.5 py-1 text-sm font-black uppercase rounded tracking-wider">
+            🍳 PIXEL KITCHEN RUSH
           </div>
-        </div>
-
-        <div>
-          <span className="text-[10px] font-mono uppercase text-zinc-400">Restaurant Reputation</span>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="flex-1 h-3 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700">
-              <div
-                className={`h-full transition-all ${
-                  reputation > 50 ? 'bg-emerald-400' : reputation > 25 ? 'bg-amber-400' : 'bg-rose-500'
-                }`}
-                style={{ width: `${reputation}%` }}
-              />
+          {roomCode && (
+            <div className="bg-white border-2 border-black px-2.5 py-1 text-xs font-bold rounded">
+              ROOM: <span className="text-rose-600 font-black">{roomCode}</span>
             </div>
-            <span className="text-xs font-mono font-bold text-white">{reputation}%</span>
-          </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-3">
-          <div className="text-xs font-mono font-bold text-cyan-300">
-            Holding: {heldItem ? <span className="text-amber-400 uppercase">{heldItem}</span> : 'NONE'}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-white border-2 border-black px-2.5 py-1 text-xs font-bold rounded">
+            <DollarSign className="w-3.5 h-3.5 text-amber-500" />
+            <span>{walletBalance.toLocaleString()} COINS</span>
           </div>
+
           <button
             onClick={() => {
               setSoundEnabled(!soundEnabled);
               soundRef.current.enabled = !soundEnabled;
             }}
-            className="rounded-lg bg-zinc-800 p-2 text-zinc-400 hover:text-white"
+            className="rounded border-2 border-black bg-white p-1.5 hover:bg-zinc-100"
+            title="Toggle Sound"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-black" /> : <VolumeX className="w-4 h-4 text-rose-500" />}
+          </button>
+          <button
+            onClick={toggleFullscreen}
+            className="rounded border-2 border-black bg-white p-1.5 hover:bg-zinc-100"
+            title="Toggle Fullscreen"
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {/* Active Orders Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        {orders.map((ord) => (
-          <div key={ord.id} className="rounded-xl bg-zinc-900 border border-zinc-800 p-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-white">{ord.name}</div>
-              <div className="text-[10px] text-amber-400 font-mono">+${ord.reward} Reward</div>
-            </div>
-            <div className="text-xs font-mono font-bold text-cyan-300 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>{ord.timeLeft}s</span>
-            </div>
+      {/* ---------------------------------------------------- */}
+      {/* HUD Bar: Shift Countdown, Orders, Tips               */}
+      {/* ---------------------------------------------------- */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-3 rounded-xl border-4 border-black shadow">
+        <div className="border-2 border-black p-2 rounded bg-rose-50">
+          <div className="text-[10px] text-zinc-600 font-bold uppercase flex items-center gap-1">
+            <Clock className="w-3 h-3 text-rose-600" />
+            <span>Shift Timer (3 Min)</span>
           </div>
-        ))}
+          <div className={`text-xl font-black ${shiftTimer <= 30 ? 'text-rose-600 animate-pulse' : 'text-black'}`}>
+            {Math.floor(shiftTimer / 60)}:{String(Math.floor(shiftTimer % 60)).padStart(2, '0')}
+          </div>
+        </div>
+
+        <div className="border-2 border-black p-2 rounded bg-emerald-50">
+          <div className="text-[10px] text-zinc-600 font-bold uppercase flex items-center gap-1">
+            <Utensils className="w-3 h-3 text-emerald-600" />
+            <span>Orders Served</span>
+          </div>
+          <div className="text-xl font-black text-emerald-600">{ordersServed}</div>
+        </div>
+
+        <div className="border-2 border-black p-2 rounded bg-amber-50">
+          <div className="text-[10px] text-zinc-600 font-bold uppercase flex items-center gap-1">
+            <Flame className="w-3 h-3 text-amber-600" />
+            <span>Burned / Trash</span>
+          </div>
+          <div className="text-xl font-black text-amber-600">{ordersBurned}</div>
+        </div>
+
+        <div className="border-2 border-black p-2 rounded bg-cyan-50">
+          <div className="text-[10px] text-zinc-600 font-bold uppercase flex items-center gap-1">
+            <Award className="w-3 h-3 text-cyan-600" />
+            <span>Tips Earned</span>
+          </div>
+          <div className="text-xl font-black text-cyan-700">+{totalTipsEarned} 🪙</div>
+        </div>
       </div>
 
-      {/* Canvas */}
-      <div className="relative aspect-[4/3] w-full max-h-[560px] overflow-hidden rounded-xl border border-zinc-800 bg-black">
-        <canvas ref={canvasRef} width={800} height={600} className="h-full w-full object-contain" />
+      {/* ---------------------------------------------------- */}
+      {/* HTML5 Canvas Kitchen Arena                           */}
+      {/* ---------------------------------------------------- */}
+      <div className="relative aspect-[4/3] w-full min-h-[420px] max-h-[580px] overflow-hidden rounded-xl border-4 border-black bg-white shadow-inner">
+        <canvas ref={canvasRef} width={800} height={600} className="h-full w-full object-contain touch-none" />
 
-        {gameState === 'idle' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-sm">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-mono font-semibold text-amber-400 border border-amber-500/30">
-              <Utensils className="w-3.5 h-3.5" />
-              <span>TOP-DOWN PIXEL KITCHEN ARCADE</span>
+        {/* Room Lobby / Matchmaking Modal Overlay */}
+        {networkMode === 'lobby' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center backdrop-blur-sm space-y-4">
+            <div className="bg-yellow-300 border-4 border-black p-6 rounded-2xl max-w-md w-full shadow-2xl text-black space-y-3">
+              <h3 className="text-2xl font-black uppercase">🍳 LOBBY MATCHMAKING</h3>
+              <p className="text-xs font-semibold text-zinc-700">
+                Host a multiplayer kitchen room with a 4-character code, join friends, or start a solo shift!
+              </p>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase text-zinc-600 block text-left mb-1">Chef Name</label>
+                <input
+                  type="text"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  className="w-full border-2 border-black px-3 py-2 text-xs font-bold rounded bg-white text-black"
+                  placeholder="Enter Chef Nickname"
+                />
+              </div>
+
+              {lobbyError && <div className="text-xs font-bold text-rose-600 bg-rose-100 p-2 rounded border border-rose-400">{lobbyError}</div>}
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  onClick={handleHostGame}
+                  className="bg-rose-500 hover:bg-rose-600 text-white font-black py-2.5 px-3 rounded-xl border-2 border-black shadow text-xs uppercase"
+                >
+                  👑 Host Game
+                </button>
+
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={joinInputCode}
+                    onChange={(e) => setJoinInputCode(e.target.value.toUpperCase())}
+                    placeholder="CODE"
+                    className="w-20 border-2 border-black px-2 py-1 text-center font-black uppercase text-xs rounded bg-white"
+                  />
+                  <button
+                    onClick={handleJoinGame}
+                    className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white font-black py-2.5 px-2 rounded-xl border-2 border-black shadow text-xs uppercase"
+                  >
+                    Join
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t-2 border-zinc-400 pt-2">
+                <button
+                  onClick={() => {
+                    setNetworkMode('solo');
+                    handleStartShift();
+                  }}
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-2.5 px-3 rounded-xl border-2 border-black shadow text-xs uppercase"
+                >
+                  ⚡ Play Solo Practice Shift
+                </button>
+              </div>
             </div>
-            <h3 className="text-3xl sm:text-4xl font-extrabold text-white">{gameTitle}</h3>
-            <p className="mt-2 max-w-md text-xs text-zinc-400 leading-relaxed">
-              Use <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-white">WASD / Arrow Keys</kbd> to move Chef. Press <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-white">SPACE / E</kbd> to interact with crates, chop boards, sizzling grills, assembly plates, and delivery windows!
-            </p>
-            <button
-              onClick={startGame}
-              className="mt-6 flex items-center gap-2 rounded-xl bg-amber-500 px-8 py-3.5 text-sm font-bold text-zinc-950 shadow-xl shadow-amber-500/30 hover:bg-amber-400 transition-all hover:scale-105"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Open Kitchen</span>
-            </button>
           </div>
         )}
 
-        {gameState === 'gameover' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-6 text-center backdrop-blur-md space-y-4">
-            <div className="text-xs font-mono font-bold uppercase tracking-widest text-rose-500">REPUTATION DEPLETED</div>
-            <h3 className="text-4xl font-black text-white">RESTAURANT CLOSED</h3>
-            <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 w-full max-w-sm">
-              <div className="text-xs text-zinc-400 font-mono">FINAL CHEF REVENUE</div>
-              <div className="text-3xl font-black font-mono text-amber-400">${score.toLocaleString()}</div>
-              <div className="text-xs text-emerald-400 font-bold mt-1">+{Math.floor(score / 100)} XP Earned</div>
+        {/* Start Shift Host Prompt Overlay */}
+        {networkMode === 'multiplayer' && !shiftActive && !shiftEnded && isHost && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 p-6 text-center backdrop-blur-sm space-y-4">
+            <div className="bg-yellow-300 border-4 border-black p-6 rounded-2xl max-w-sm w-full text-black space-y-3">
+              <div className="text-xs font-bold uppercase">ROOM CODE: <span className="text-rose-600 font-black text-lg">{roomCode}</span></div>
+              <h4 className="text-xl font-black">WAITING FOR CHEFS</h4>
+              <p className="text-xs text-zinc-700">Share your 4-character code with your team to cook together!</p>
+              <button
+                onClick={handleStartShift}
+                className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow text-sm uppercase flex items-center justify-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Start 3-Min Shift</span>
+              </button>
             </div>
+          </div>
+        )}
 
-            <div className="flex flex-col gap-2.5 w-full max-w-sm">
-              <button
-                onClick={handleSubmitScore}
-                disabled={isScoreSubmitted}
-                className={`flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold ${
-                  isScoreSubmitted
-                    ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/50'
-                    : 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400 shadow-lg'
-                }`}
-              >
-                <Trophy className="w-4 h-4" />
-                <span>{isScoreSubmitted ? 'Score Submitted!' : 'Submit to Leaderboard'}</span>
-              </button>
+        {/* Daily Review Modal (No Game Over - Shift End Evaluation) */}
+        {showDailyReview && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-md space-y-4">
+            <div className="bg-amber-100 border-4 border-black p-6 rounded-2xl max-w-md w-full shadow-2xl text-black space-y-3">
+              {/* Asset Description Placeholder for Canva AI Generation */}
+              {/* CANVA_AI_ASSET: Retro MS Paint comic certificate with gold stamped stars and greasy chef thumbprints */}
+              <div className="bg-yellow-300 border-2 border-black p-1.5 rounded text-[10px] font-black uppercase tracking-wider">
+                📋 DAILY RESTAURANT INSPECTION REPORT
+              </div>
 
-              <button
-                onClick={startGame}
-                className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 py-3 text-xs font-semibold text-white hover:bg-zinc-700"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>Play Again</span>
-              </button>
+              <h3 className="text-3xl font-black text-black">SHIFT FINISHED!</h3>
+
+              {/* Star Rating Display */}
+              <div className="flex items-center justify-center gap-1.5 text-2xl text-amber-500">
+                {[...Array(5)].map((_, i) => (
+                  <span key={i} className={i < Math.floor(starRating) ? 'text-amber-500' : 'text-zinc-400'}>
+                    ★
+                  </span>
+                ))}
+                <span className="text-sm font-black text-black ml-1.5">({starRating.toFixed(1)} / 5.0)</span>
+              </div>
+
+              {/* Humorous Customer Review Box */}
+              <div className="bg-white border-2 border-black p-3 rounded-lg text-xs italic text-zinc-800 font-serif">
+                {customerReview}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                <div className="bg-emerald-100 border border-black p-2 rounded">
+                  Served: <span className="font-black text-emerald-700">{ordersServed} Orders</span>
+                </div>
+                <div className="bg-amber-100 border border-black p-2 rounded">
+                  Tips: <span className="font-black text-amber-700">+{totalTipsEarned} 🪙</span>
+                </div>
+              </div>
+
+              {/* Thematic Rewarded Ad Buttons */}
+              <div className="space-y-2 pt-2 border-t-2 border-black">
+                <button
+                  onClick={handleWatchRewardedAdForDoubleTips}
+                  disabled={tipsDoubled}
+                  className={`w-full py-2.5 px-3 rounded-xl border-2 border-black font-black text-xs uppercase flex items-center justify-center gap-2 shadow ${
+                    tipsDoubled
+                      ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed'
+                      : 'bg-yellow-400 hover:bg-yellow-500 text-black animate-bounce'
+                  }`}
+                >
+                  <Tv className="w-4 h-4" />
+                  <span>{tipsDoubled ? 'Tips Doubled! (2X Earned)' : 'Double Today\'s Tips (Watch Ad)'}</span>
+                </button>
+
+                {starRating < 5.0 && !inspectorBribed && (
+                  <button
+                    onClick={handleBribeInspectorAd}
+                    className="w-full bg-purple-500 hover:bg-purple-600 text-white font-black py-2.5 px-3 rounded-xl border-2 border-black shadow text-xs uppercase flex items-center justify-center gap-2"
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Bribe Health Inspector (5-Star Ad)</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setShowDailyReview(false);
+                    if (networkMode === 'multiplayer' && socketRef.current) {
+                      socketRef.current.emit('restart_shift');
+                    } else {
+                      handleStartShift();
+                    }
+                  }}
+                  className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black py-2.5 px-3 rounded-xl border-2 border-black shadow text-xs uppercase"
+                >
+                  ▶ Start Next Shift
+                </button>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* On-screen quick controls for touch / mobile */}
-      <div className="flex items-center justify-between rounded-xl bg-zinc-900/60 p-2 border border-zinc-800">
-        <span className="text-xs text-zinc-400 font-mono">Quick Action:</span>
-        <button
-          onClick={interactWithNearbyStation}
-          className="flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-2 text-xs font-bold text-zinc-950 active:scale-95 transition-all shadow-md"
-        >
-          <Utensils className="w-4 h-4" />
-          <span>[SPACE] Grab / Chop / Grill / Deliver</span>
-        </button>
+      {/* ---------------------------------------------------- */}
+      {/* On-Screen Mobile Action Buttons & Retro Controls     */}
+      {/* ---------------------------------------------------- */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-yellow-100 p-3 rounded-xl border-4 border-black">
+        <div className="text-xs font-bold text-zinc-700">
+          <span className="hidden sm:inline">Controls: </span>
+          <span className="bg-white px-2 py-0.5 border border-black rounded">WASD / Arrow Keys</span> to Move •{' '}
+          <span className="bg-white px-2 py-0.5 border border-black rounded">E / Space</span> to Pick/Cook/Chop •{' '}
+          <span className="bg-white px-2 py-0.5 border border-black rounded">Q</span> to Trash
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <button
+            onClick={() => handleActionButton('interact')}
+            className="flex-1 sm:flex-initial bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-black py-3 px-5 rounded-xl border-2 border-black shadow text-xs uppercase"
+          >
+            🍳 Interact / Cook
+          </button>
+          <button
+            onClick={() => handleActionButton('toss')}
+            className="bg-zinc-700 hover:bg-zinc-800 active:scale-95 text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow text-xs uppercase"
+          >
+            🗑️ Toss
+          </button>
+        </div>
       </div>
+
+      {/* Rewarded Ad Modal */}
+      <RewardedAdModal
+        isOpen={showRewardedAd}
+        onClose={() => setShowRewardedAd(false)}
+        onRewardEarned={handleAdRewardEarned}
+        rewardDescription={
+          adRewardAction === 'double_tips'
+            ? 'Watch short sponsor ad to double today’s shift tips!'
+            : 'Watch short ad to bribe the inspector and receive an instant 5-star grade!'
+        }
+      />
 
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Save Your Master Chef Revenue"
-        onSuccess={() => {
-          setIsScoreSubmitted(true);
-          confetti({ particleCount: 80, spread: 60 });
-          if (onScoreSubmitted) onScoreSubmitted(score);
-        }}
+        title="Save Your Pixel Kitchen Restaurant"
+        onSuccess={() => {}}
       />
     </div>
   );
