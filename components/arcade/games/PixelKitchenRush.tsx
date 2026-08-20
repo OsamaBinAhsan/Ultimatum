@@ -18,13 +18,8 @@ import {
   DollarSign,
   Tv,
   ShieldAlert,
-  ArrowUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
   Maximize2,
   Minimize2,
-  ShoppingBag,
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { platformStore } from '@/lib/data/store';
@@ -55,6 +50,25 @@ class KitchenSynthAudio {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+  }
+
+  playPick() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(580, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.08);
+    } catch {}
   }
 
   playChop() {
@@ -137,8 +151,23 @@ class KitchenSynthAudio {
 }
 
 // ---------------------------------------------------------------------------
-// Types & Game Interfaces
+// Types & Game Recipes
 // ---------------------------------------------------------------------------
+interface RecipeDef {
+  name: string;
+  ingredients: string[];
+  points: number;
+  tips: number;
+  time: number;
+}
+
+const RECIPES: RecipeDef[] = [
+  { name: 'Classic Burger', ingredients: ['bun', 'cooked_patty', 'lettuce'], points: 200, tips: 60, time: 45 },
+  { name: 'Cheeseburger Deluxe', ingredients: ['bun', 'cooked_patty', 'cheese', 'tomato'], points: 280, tips: 85, time: 50 },
+  { name: 'Vegan Salad Bowl', ingredients: ['chopped_lettuce', 'chopped_tomato', 'cheese'], points: 190, tips: 50, time: 40 },
+  { name: 'Mega Bacon Stack', ingredients: ['bun', 'cooked_patty', 'cheese', 'chopped_tomato', 'lettuce'], points: 350, tips: 120, time: 55 },
+];
+
 interface RemotePlayer {
   id: string;
   n: string;
@@ -191,7 +220,7 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
   const [joinInputCode, setJoinInputCode] = useState<string>('');
   const [playerName, setPlayerName] = useState<string>('Chef Rookie');
   const [isHost, setIsHost] = useState<boolean>(false);
-  const [myPlayerId, setMyPlayerId] = useState<string>('');
+  const [myPlayerId, setMyPlayerId] = useState<string>('local_chef');
   const [lobbyError, setLobbyError] = useState<string>('');
 
   // Shift & Economy State
@@ -212,18 +241,42 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
   const [tipsDoubled, setTipsDoubled] = useState<boolean>(false);
   const [inspectorBribed, setInspectorBribed] = useState<boolean>(false);
 
-  // Monetization & Modals
+  // Modals & Sound
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showRewardedAd, setShowRewardedAd] = useState<boolean>(false);
   const [adRewardAction, setAdRewardAction] = useState<'double_tips' | 'bribe_inspector'>('double_tips');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
 
-  // Client Prediction & Movement
-  const localPosRef = useRef<{ x: number; y: number; vx: number; vy: number }>({ x: 350, y: 320, vx: 0, vy: 0 });
+  // Client Prediction & Local Simulation State
+  const localPosRef = useRef<{ x: number; y: number }>({ x: 380, y: 320 });
+  const localHoldingRef = useRef<string | null>(null);
   const keysPressedRef = useRef<{ [key: string]: boolean }>({});
-  const joystickDirRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const lastStateRef = useRef<KitchenState | null>(null);
+  const lastStateRef = useRef<KitchenState>({
+    c: 'SOLO',
+    sa: false,
+    se: false,
+    t: 180,
+    p: [],
+    st: [
+      { id: 0, st: 'empty', tm: 0, it: null },
+      { id: 1, st: 'empty', tm: 0, it: null },
+      { id: 2, st: 'empty', tm: 0, it: null },
+    ],
+    cb: [
+      { id: 0, st: 'empty', pr: 0, it: null },
+      { id: 1, st: 'empty', pr: 0, it: null },
+    ],
+    ap: [
+      { id: 0, it: [] },
+      { id: 1, it: [] },
+    ],
+    o: [],
+    stat: { ordersServed: 0, ordersBurned: 0, ordersFailed: 0, totalTips: 0 },
+  });
+
+  const orderCounterRef = useRef<number>(1);
+  const activePromptRef = useRef<string>('');
 
   // ---------------------------------------------------------------------------
   // Procedural Customer Reviews Generator
@@ -260,6 +313,22 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     ];
     return badReviews[Math.floor(Math.random() * badReviews.length)];
   };
+
+  // Helper to Spawn an Order in Local / Solo mode
+  const spawnLocalOrder = useCallback(() => {
+    const s = lastStateRef.current;
+    if (s.o.length >= 4) return;
+    const r = RECIPES[Math.floor(Math.random() * RECIPES.length)];
+    s.o.push({
+      id: orderCounterRef.current++,
+      n: r.name,
+      ing: [...r.ingredients],
+      tr: r.time,
+      mt: r.time,
+      pts: r.points,
+      tip: r.tips,
+    });
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Socket.io Connection & Matchmaking
@@ -302,6 +371,12 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       setOrdersFailed(state.stat.ordersFailed);
       setTotalTipsEarned(state.stat.totalTips);
 
+      // Synchronize local holding item if server has it
+      const me = state.p.find((p) => p.id === (socketRef.current?.id || myPlayerId));
+      if (me) {
+        localHoldingRef.current = me.h;
+      }
+
       // Check for Shift End Trigger
       if (state.se && !shiftEnded) {
         setShiftEnded(true);
@@ -309,23 +384,21 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       }
     });
 
-    socket.on('order_served_success', ({ recipeName, tips }) => {
+    socket.on('order_served_success', () => {
       soundRef.current.playBell();
-      confetti({ particleCount: 35, spread: 45 });
+      confetti({ particleCount: 45, spread: 55 });
     });
 
     socketRef.current = socket;
     return socket;
   };
 
-  // Host Online Room
   const handleHostGame = () => {
     setLobbyError('');
     const socket = initSocket();
     socket.emit('create_room', { playerName });
   };
 
-  // Join Online Room
   const handleJoinGame = () => {
     if (!joinInputCode || joinInputCode.length < 4) {
       setLobbyError('Please enter a valid 4-character room code.');
@@ -336,12 +409,12 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     socket.emit('join_room', { roomCode: joinInputCode.toUpperCase(), playerName });
   };
 
-  // Start Shift
   const handleStartShift = () => {
     if (networkMode === 'multiplayer' && socketRef.current) {
       socketRef.current.emit('start_shift');
     } else {
-      // Solo Mode Fallback
+      // Full Local Solo Mode Shift Start
+      setNetworkMode('solo');
       setShiftActive(true);
       setShiftEnded(false);
       setShiftTimer(180);
@@ -349,6 +422,30 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       setOrdersBurned(0);
       setOrdersFailed(0);
       setTotalTipsEarned(0);
+      localHoldingRef.current = null;
+
+      const s = lastStateRef.current;
+      s.sa = true;
+      s.se = false;
+      s.t = 180;
+      s.st.forEach((st) => {
+        st.st = 'empty';
+        st.tm = 0;
+        st.it = null;
+      });
+      s.cb.forEach((cb) => {
+        cb.st = 'empty';
+        cb.pr = 0;
+        cb.it = null;
+      });
+      s.ap.forEach((ap) => {
+        ap.it = [];
+      });
+      s.o = [];
+      s.stat = { ordersServed: 0, ordersBurned: 0, ordersFailed: 0, totalTips: 0 };
+
+      spawnLocalOrder();
+      spawnLocalOrder();
     }
   };
 
@@ -360,7 +457,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     setTipsDoubled(false);
     setInspectorBribed(false);
 
-    // Calculate Star Rating
     const totalOrders = served + failed + burned * 0.5;
     let rating = 5.0;
     if (totalOrders > 0) {
@@ -374,7 +470,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     const reviewText = generateCustomerReview(rating, served, burned);
     setCustomerReview(reviewText);
 
-    // Process Shift Payout via Backend Transaction Route
     try {
       const res = await fetch('/api/kitchen/payout', {
         method: 'POST',
@@ -397,7 +492,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     } catch {}
   };
 
-  // Monetization Rewarded Ad Callbacks
   const handleWatchRewardedAdForDoubleTips = () => {
     setAdRewardAction('double_tips');
     setShowRewardedAd(true);
@@ -415,7 +509,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       setTotalTipsEarned((t) => t * 2);
       confetti({ particleCount: 100, spread: 80 });
 
-      // Record double tip payout in MySQL
       try {
         const res = await fetch('/api/kitchen/payout', {
           method: 'POST',
@@ -444,63 +537,178 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
   };
 
   // ---------------------------------------------------------------------------
-  // Action Handlers (Chop, Cook, Plate, Serve, Toss)
+  // Action Engine (Chop, Cook, Plate, Serve, Toss) - Works Solo + Multiplayer
   // ---------------------------------------------------------------------------
-  const emitAction = (action: string, payload: any = {}) => {
-    if (socketRef.current) {
+  const executeKitchenAction = (action: string, payload: any = {}) => {
+    // 1. Forward to Socket Server if Multiplayer
+    if (networkMode === 'multiplayer' && socketRef.current) {
       socketRef.current.emit('kitchen_action', { action, payload });
+    }
+
+    // 2. Local State Execution (Immediate Client Response & Solo Engine)
+    const state = lastStateRef.current;
+    if (!state.sa || state.se) return;
+
+    if (action === 'pick_ingredient') {
+      if (!localHoldingRef.current) {
+        localHoldingRef.current = payload.ingredient;
+        soundRef.current.playPick();
+      }
+    }
+
+    if (action === 'interact_stove') {
+      const stove = state.st.find((s) => s.id === payload.stoveId);
+      if (stove) {
+        if (stove.st === 'empty' && localHoldingRef.current === 'raw_patty') {
+          stove.st = 'cooking';
+          stove.tm = 0;
+          stove.it = 'cooking_patty';
+          localHoldingRef.current = null;
+          soundRef.current.playSizzle();
+        } else if ((stove.st === 'ready' || stove.st === 'burnt') && !localHoldingRef.current) {
+          localHoldingRef.current = stove.it;
+          stove.st = 'empty';
+          stove.tm = 0;
+          stove.it = null;
+          soundRef.current.playPick();
+        }
+      }
+    }
+
+    if (action === 'interact_chopping') {
+      const board = state.cb.find((b) => b.id === payload.boardId);
+      if (board) {
+        if (board.st === 'empty' && (localHoldingRef.current === 'raw_lettuce' || localHoldingRef.current === 'raw_tomato')) {
+          board.it = localHoldingRef.current;
+          board.st = 'chopping';
+          board.pr = 0;
+          localHoldingRef.current = null;
+          soundRef.current.playPick();
+        } else if (board.st === 'chopping') {
+          board.pr += 1;
+          soundRef.current.playChop();
+          if (board.pr >= 5) {
+            board.st = 'chopped';
+            board.it = board.it === 'raw_lettuce' ? 'chopped_lettuce' : 'chopped_tomato';
+          }
+        } else if (board.st === 'chopped' && !localHoldingRef.current) {
+          localHoldingRef.current = board.it;
+          board.st = 'empty';
+          board.pr = 0;
+          board.it = null;
+          soundRef.current.playPick();
+        }
+      }
+    }
+
+    if (action === 'interact_plate') {
+      const plate = state.ap.find((p) => p.id === payload.plateId);
+      if (plate) {
+        if (localHoldingRef.current && localHoldingRef.current !== 'burnt_patty' && !localHoldingRef.current.startsWith('raw_')) {
+          plate.it.push(localHoldingRef.current);
+          localHoldingRef.current = null;
+          soundRef.current.playPick();
+        } else if (!localHoldingRef.current && plate.it.length > 0) {
+          localHoldingRef.current = `plated:${plate.it.join('+')}`;
+          plate.it = [];
+          soundRef.current.playPick();
+        }
+      }
+    }
+
+    if (action === 'serve_order') {
+      if (localHoldingRef.current && localHoldingRef.current.startsWith('plated:')) {
+        const platedIngs = localHoldingRef.current.replace('plated:', '').split('+');
+
+        let matchedIdx = -1;
+        for (let i = 0; i < state.o.length; i++) {
+          const ord = state.o[i];
+          const hasAll = ord.ing.every((ing) => platedIngs.includes(ing));
+          const sameCount = ord.ing.length === platedIngs.length;
+          if (hasAll && sameCount) {
+            matchedIdx = i;
+            break;
+          }
+        }
+
+        if (matchedIdx !== -1) {
+          const matched = state.o[matchedIdx];
+          state.stat.ordersServed += 1;
+          state.stat.totalTips += matched.tip;
+          setOrdersServed((s) => s + 1);
+          setTotalTipsEarned((t) => t + matched.tip);
+          setMyScore((s) => s + matched.pts + matched.tip);
+          state.o.splice(matchedIdx, 1);
+          localHoldingRef.current = null;
+
+          soundRef.current.playBell();
+          confetti({ particleCount: 50, spread: 60 });
+          spawnLocalOrder();
+        }
+      }
+    }
+
+    if (action === 'toss_trash') {
+      if (localHoldingRef.current) {
+        localHoldingRef.current = null;
+        soundRef.current.playBurn();
+      }
     }
   };
 
   const handleActionButton = (type: 'interact' | 'cook' | 'toss') => {
     const p = localPosRef.current;
     if (type === 'toss') {
-      emitAction('toss_trash');
+      executeKitchenAction('toss_trash');
       return;
     }
 
-    // Near Ingredient Dispenser?
-    if (p.y > 480) {
-      if (p.x < 240) emitAction('pick_ingredient', { ingredient: 'bun' });
-      else if (p.x < 360) emitAction('pick_ingredient', { ingredient: 'raw_patty' });
-      else if (p.x < 480) emitAction('pick_ingredient', { ingredient: 'raw_lettuce' });
-      else if (p.x < 600) emitAction('pick_ingredient', { ingredient: 'raw_tomato' });
-      else emitAction('pick_ingredient', { ingredient: 'cheese' });
+    // Near Ingredient Dispensers (Bottom Crates)
+    if (p.y > 440) {
+      if (p.x >= 100 && p.x < 220) executeKitchenAction('pick_ingredient', { ingredient: 'bun' });
+      else if (p.x >= 220 && p.x < 340) executeKitchenAction('pick_ingredient', { ingredient: 'raw_patty' });
+      else if (p.x >= 340 && p.x < 460) executeKitchenAction('pick_ingredient', { ingredient: 'raw_lettuce' });
+      else if (p.x >= 460 && p.x < 580) executeKitchenAction('pick_ingredient', { ingredient: 'raw_tomato' });
+      else if (p.x >= 580 && p.x < 700) executeKitchenAction('pick_ingredient', { ingredient: 'cheese' });
       return;
     }
 
-    // Near Stoves? (y < 240, x ~ 220-420)
-    if (p.y < 240 && p.x < 440) {
-      const stoveIdx = p.x < 280 ? 0 : p.x < 360 ? 1 : 2;
-      emitAction('interact_stove', { stoveId: stoveIdx });
-      soundRef.current.playSizzle();
+    // Near Top Stoves (x: 180-440, y < 260)
+    if (p.y < 260 && p.x >= 180 && p.x < 440) {
+      const stoveIdx = p.x < 260 ? 0 : p.x < 350 ? 1 : 2;
+      executeKitchenAction('interact_stove', { stoveId: stoveIdx });
       return;
     }
 
-    // Near Cutting Boards? (y < 240, x ~ 480-640)
-    if (p.y < 240 && p.x >= 480) {
-      const boardIdx = p.x < 560 ? 0 : 1;
-      emitAction('interact_chopping', { boardId: boardIdx });
-      soundRef.current.playChop();
+    // Near Top Cutting Boards (x: 450-640, y < 260)
+    if (p.y < 260 && p.x >= 450 && p.x < 640) {
+      const boardIdx = p.x < 550 ? 0 : 1;
+      executeKitchenAction('interact_chopping', { boardId: boardIdx });
       return;
     }
 
-    // Near Assembly Plates? (y ~ 400-480, x ~ 300-480)
-    if (p.y >= 380 && p.y <= 480 && p.x >= 280 && p.x <= 500) {
-      const plateIdx = p.x < 380 ? 0 : 1;
-      emitAction('interact_plate', { plateId: plateIdx });
+    // Near Middle Assembly Plating Tables (x: 270-520, y: 350-460)
+    if (p.y >= 350 && p.y <= 460 && p.x >= 270 && p.x <= 520) {
+      const plateIdx = p.x < 390 ? 0 : 1;
+      executeKitchenAction('interact_plate', { plateId: plateIdx });
       return;
     }
 
-    // Near Service Delivery Window? (x < 150)
-    if (p.x < 180) {
-      emitAction('serve_order');
+    // Near Left Delivery Hatch (x < 200)
+    if (p.x < 200) {
+      executeKitchenAction('serve_order');
+      return;
+    }
+
+    // Near Right Trash Bin (x > 640)
+    if (p.x > 640) {
+      executeKitchenAction('toss_trash');
       return;
     }
   };
 
   // ---------------------------------------------------------------------------
-  // Input Listeners (WASD + Arrows)
+  // Input Listeners (WASD + Space + E + Q)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -525,7 +733,69 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Canvas Game Render Loop (Retro MS Paint Aesthetic)
+  // Solo Mode Tick Simulation Loop (Runs at 20 Ticks/sec when offline)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (networkMode !== 'solo' || !shiftActive || shiftEnded) return;
+
+    const interval = setInterval(() => {
+      const s = lastStateRef.current;
+      const dt = 0.05;
+
+      // 1. Shift Timer
+      s.t -= dt;
+      setShiftTimer(Math.ceil(s.t));
+      if (s.t <= 0) {
+        s.t = 0;
+        s.sa = false;
+        s.se = true;
+        setShiftActive(false);
+        setShiftEnded(true);
+        triggerDailyReview(s.stat.ordersServed, s.stat.ordersBurned, s.stat.ordersFailed, s.stat.totalTips);
+        return;
+      }
+
+      // 2. Stove Sim
+      s.st.forEach((stove) => {
+        if (stove.st === 'cooking') {
+          stove.tm += dt;
+          if (stove.tm >= 8) {
+            stove.st = 'ready';
+            stove.it = 'cooked_patty';
+          }
+        } else if (stove.st === 'ready') {
+          stove.tm += dt;
+          if (stove.tm >= 14) {
+            stove.st = 'burnt';
+            stove.it = 'burnt_patty';
+            s.stat.ordersBurned += 1;
+            setOrdersBurned((b) => b + 1);
+            soundRef.current.playBurn();
+          }
+        }
+      });
+
+      // 3. Orders Sim
+      for (let i = s.o.length - 1; i >= 0; i--) {
+        const o = s.o[i];
+        o.tr -= dt;
+        if (o.tr <= 0) {
+          s.stat.ordersFailed += 1;
+          setOrdersFailed((f) => f + 1);
+          s.o.splice(i, 1);
+        }
+      }
+
+      if (s.o.length < 3 && Math.random() < 0.03) {
+        spawnLocalOrder();
+      }
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [networkMode, shiftActive, shiftEnded, spawnLocalOrder]);
+
+  // ---------------------------------------------------------------------------
+  // Canvas Game Render Loop (Retro MS Paint Aesthetic + Order Ticket Rack)
   // ---------------------------------------------------------------------------
   const renderKitchen = useCallback(() => {
     const canvas = canvasRef.current;
@@ -536,7 +806,7 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     const width = 800;
     const height = 600;
 
-    // 1. Client Movement Prediction & Velocity Update
+    // 1. Client Movement Prediction
     const keys = keysPressedRef.current;
     let dx = 0;
     let dy = 0;
@@ -545,18 +815,13 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     if (keys['a'] || keys['arrowleft']) dx -= 1;
     if (keys['d'] || keys['arrowright']) dx += 1;
 
-    if (joystickDirRef.current.x !== 0 || joystickDirRef.current.y !== 0) {
-      dx = joystickDirRef.current.x;
-      dy = joystickDirRef.current.y;
-    }
-
-    const speed = 4.2;
+    const speed = 4.5;
     if (dx !== 0 || dy !== 0) {
       const len = Math.hypot(dx, dy);
       localPosRef.current.x = Math.max(90, Math.min(710, localPosRef.current.x + (dx / len) * speed));
-      localPosRef.current.y = Math.max(140, Math.min(510, localPosRef.current.y + (dy / len) * speed));
+      localPosRef.current.y = Math.max(160, Math.min(500, localPosRef.current.y + (dy / len) * speed));
 
-      if (socketRef.current) {
+      if (networkMode === 'multiplayer' && socketRef.current) {
         socketRef.current.emit('player_move', {
           x: localPosRef.current.x,
           y: localPosRef.current.y,
@@ -566,11 +831,10 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       }
     }
 
-    // 2. Retro MS-Paint Tiled Kitchen Floor
+    // 2. Kitchen Floor (Checkerboard Tiles)
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, width, height);
 
-    // Checkerboard Tile Grid
     ctx.fillStyle = '#e2e8f0';
     for (let x = 0; x < width; x += 40) {
       for (let y = 0; y < height; y += 40) {
@@ -580,23 +844,74 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       }
     }
 
-    // Thick MS-Paint Retro Border Walls
+    // Outer Thick MS-Paint Border
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 8;
     ctx.strokeRect(4, 4, width - 8, height - 8);
 
-    // 3. Top Kitchen Counter: Stoves & Cutting Boards
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillRect(180, 100, 460, 80);
-    ctx.strokeRect(180, 100, 460, 80);
-
     const state = lastStateRef.current;
 
-    // Render Stoves (3 Units)
-    const stoves = state ? state.st : [{ id: 0, st: 'empty', tm: 0, it: null }, { id: 1, st: 'empty', tm: 0, it: null }, { id: 2, st: 'empty', tm: 0, it: null }];
-    stoves.forEach((stove, idx) => {
-      const sx = 200 + idx * 75;
-      const sy = 110;
+    // 3. TOP ORDER TICKET RACK (Real-Time Customer Orders)
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(10, 10, width - 20, 85);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(10, 10, width - 20, 85);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('📋 ACTIVE CUSTOMER TICKETS:', 22, 28);
+
+    if (state.o.length === 0) {
+      ctx.fillStyle = '#a1a1aa';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('⏳ WAITING FOR ORDERS TO COME IN...', 220, 55);
+    } else {
+      state.o.forEach((order, idx) => {
+        const ox = 200 + idx * 145;
+        const oy = 16;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(ox, oy, 138, 72);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(ox, oy, 138, 72);
+
+        // Recipe Title
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(order.n.slice(0, 16), ox + 6, oy + 14);
+
+        // Ingredients
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 8px monospace';
+        const formattedIngs = order.ing.map((i) => i.replace('cooked_', '').replace('chopped_', '')).join('+');
+        ctx.fillText(formattedIngs.slice(0, 22), ox + 6, oy + 28);
+
+        // Time Progress Bar
+        const pct = Math.max(0, order.tr / order.mt);
+        ctx.fillStyle = pct < 0.3 ? '#ef4444' : pct < 0.6 ? '#f59e0b' : '#10b981';
+        ctx.fillRect(ox + 6, oy + 36, 126 * pct, 6);
+        ctx.strokeRect(ox + 6, oy + 36, 126, 6);
+
+        // Value & Tips
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`+${order.pts}p • ${order.tip}🪙`, ox + 6, oy + 58);
+      });
+    }
+
+    // 4. Stoves Counter (Top Middle)
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(180, 110, 260, 80);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 3.5;
+    ctx.strokeRect(180, 110, 260, 80);
+
+    state.st.forEach((stove, idx) => {
+      const sx = 200 + idx * 80;
+      const sy = 120;
 
       ctx.fillStyle = stove.st === 'burnt' ? '#1e293b' : stove.st === 'ready' ? '#f59e0b' : stove.st === 'cooking' ? '#ef4444' : '#64748b';
       ctx.fillRect(sx, sy, 60, 60);
@@ -604,7 +919,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       ctx.lineWidth = 3;
       ctx.strokeRect(sx, sy, 60, 60);
 
-      // Stove Grate Rings
       ctx.beginPath();
       ctx.arc(sx + 30, sy + 30, 20, 0, Math.PI * 2);
       ctx.strokeStyle = stove.st === 'cooking' ? '#ffffff' : '#334155';
@@ -613,37 +927,39 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(stove.st === 'cooking' ? '🔥 SIZZLE' : stove.st === 'ready' ? '✨ READY' : stove.st === 'burnt' ? '⚠ BURNT' : 'STOVE', sx + 30, sy + 34);
+      ctx.fillText(stove.st === 'cooking' ? '🔥 GRILL' : stove.st === 'ready' ? '✨ DONE' : stove.st === 'burnt' ? '⚠ BURNT' : 'STOVE', sx + 30, sy + 34);
     });
 
-    // Render Cutting Boards (2 Units)
-    const boards = state ? state.cb : [{ id: 0, st: 'empty', pr: 0, it: null }, { id: 1, st: 'empty', pr: 0, it: null }];
-    boards.forEach((board, idx) => {
-      const bx = 470 + idx * 80;
-      const by = 110;
+    // 5. Cutting Boards Counter (Top Right)
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(460, 110, 200, 80);
+    ctx.strokeRect(460, 110, 200, 80);
+
+    state.cb.forEach((board, idx) => {
+      const bx = 480 + idx * 90;
+      const by = 120;
 
       ctx.fillStyle = '#b45309';
-      ctx.fillRect(bx, by, 65, 60);
-      ctx.strokeRect(bx, by, 65, 60);
+      ctx.fillRect(bx, by, 70, 60);
+      ctx.strokeRect(bx, by, 70, 60);
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(board.st === 'chopping' ? `🔪 (${board.pr}/5)` : board.st === 'chopped' ? '🥗 DONE' : 'CHOP', bx + 32, by + 34);
+      ctx.fillText(board.st === 'chopping' ? `🔪 (${board.pr}/5)` : board.st === 'chopped' ? '🥗 CHOP' : 'BOARD', bx + 35, by + 34);
     });
 
-    // 4. Assembly Tables & Plating Counters
+    // 6. Middle Plating & Assembly Tables
     ctx.fillStyle = '#94a3b8';
-    ctx.fillRect(280, 380, 240, 70);
-    ctx.strokeRect(280, 380, 240, 70);
+    ctx.fillRect(280, 360, 240, 80);
+    ctx.strokeRect(280, 360, 240, 80);
 
-    const plates = state ? state.ap : [{ id: 0, it: [] }, { id: 1, it: [] }];
-    plates.forEach((p, idx) => {
-      const px = 320 + idx * 100;
-      const py = 415;
+    state.ap.forEach((p, idx) => {
+      const px = 330 + idx * 120;
+      const py = 400;
 
       ctx.beginPath();
-      ctx.arc(px, py, 24, 0, Math.PI * 2);
+      ctx.arc(px, py, 26, 0, Math.PI * 2);
       ctx.fillStyle = '#f8fafc';
       ctx.fill();
       ctx.strokeStyle = '#0f172a';
@@ -653,20 +969,20 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
       ctx.fillStyle = '#0f172a';
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(p.it.length > 0 ? `PLATE (${p.it.length})` : 'EMPTY', px, py + 3);
+      ctx.fillText(p.it.length > 0 ? `PLATE (${p.it.length})` : 'PLATE', px, py + 3);
     });
 
-    // 5. Left Service Counter & Delivery Hatch
+    // 7. Left Delivery Hatch
     ctx.fillStyle = '#38bdf8';
-    ctx.fillRect(10, 180, 100, 240);
-    ctx.strokeRect(10, 180, 100, 240);
+    ctx.fillRect(10, 210, 100, 220);
+    ctx.strokeRect(10, 210, 100, 220);
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('DELIVERY', 60, 280);
-    ctx.fillText('HATCH', 60, 300);
+    ctx.fillText('DELIVERY', 60, 310);
+    ctx.fillText('HATCH 🔔', 60, 330);
 
-    // 6. Right Trash Bin
+    // 8. Right Trash Can
     ctx.fillStyle = '#ef4444';
     ctx.fillRect(690, 280, 80, 80);
     ctx.strokeRect(690, 280, 80, 80);
@@ -675,38 +991,37 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
     ctx.textAlign = 'center';
     ctx.fillText('🗑️ TRASH', 730, 325);
 
-    // 7. Bottom Ingredient Dispensers (5 Crates)
+    // 9. Bottom Ingredient Dispensers (5 Crates)
     const ingredients = [
-      { name: 'BUN', color: '#f59e0b', x: 120 },
-      { name: 'PATTY', color: '#dc2626', x: 240 },
-      { name: 'LETTUCE', color: '#16a34a', x: 360 },
-      { name: 'TOMATO', color: '#ef4444', x: 480 },
-      { name: 'CHEESE', color: '#eab308', x: 600 },
+      { name: 'BUNS', color: '#f59e0b', x: 100 },
+      { name: 'PATTY', color: '#dc2626', x: 220 },
+      { name: 'LETTUCE', color: '#16a34a', x: 340 },
+      { name: 'TOMATO', color: '#ef4444', x: 460 },
+      { name: 'CHEESE', color: '#eab308', x: 580 },
     ];
 
     ingredients.forEach((ing) => {
       ctx.fillStyle = ing.color;
-      ctx.fillRect(ing.x, 520, 100, 60);
-      ctx.strokeRect(ing.x, 520, 100, 60);
+      ctx.fillRect(ing.x, 510, 110, 70);
+      ctx.strokeRect(ing.x, 510, 110, 70);
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px monospace';
+      ctx.font = 'bold 12px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(ing.name, ing.x + 50, 555);
+      ctx.fillText(ing.name, ing.x + 55, 550);
     });
 
-    // 8. Render Other Connected Remote Chefs
-    if (state && state.p) {
+    // 10. Render Other Remote Connected Chefs
+    if (networkMode === 'multiplayer' && state.p) {
       state.p.forEach((player) => {
-        if (player.id !== myPlayerId) {
+        if (player.id !== (socketRef.current?.id || myPlayerId)) {
           ctx.beginPath();
-          ctx.arc(player.x, player.y, 20, 0, Math.PI * 2);
+          ctx.arc(player.x, player.y, 22, 0, Math.PI * 2);
           ctx.fillStyle = player.c;
           ctx.fill();
           ctx.strokeStyle = '#0f172a';
           ctx.lineWidth = 3.5;
           ctx.stroke();
 
-          // Chef Hat
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(player.x - 12, player.y - 32, 24, 16);
           ctx.strokeRect(player.x - 12, player.y - 32, 24, 16);
@@ -718,35 +1033,77 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
 
           if (player.h) {
             ctx.fillStyle = '#f59e0b';
-            ctx.font = 'bold 9px monospace';
-            ctx.fillText(`[${player.h.replace('raw_', '')}]`, player.x, player.y + 32);
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText(`[${player.h.replace('raw_', '')}]`, player.x, player.y + 36);
           }
         }
       });
     }
 
-    // 9. Render Local Player Chef
+    // 11. Render Local Chef
     const myPos = localPosRef.current;
     ctx.beginPath();
-    ctx.arc(myPos.x, myPos.y, 22, 0, Math.PI * 2);
+    ctx.arc(myPos.x, myPos.y, 24, 0, Math.PI * 2);
     ctx.fillStyle = '#f43f5e';
     ctx.fill();
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 4;
     ctx.stroke();
 
-    // Head Chef Hat
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(myPos.x - 14, myPos.y - 36, 28, 18);
-    ctx.strokeRect(myPos.x - 14, myPos.y - 36, 28, 18);
+    ctx.fillRect(myPos.x - 14, myPos.y - 38, 28, 18);
+    ctx.strokeRect(myPos.x - 14, myPos.y - 38, 28, 18);
 
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`${playerName} (YOU)`, myPos.x, myPos.y - 42);
+    ctx.fillText(`${playerName} (YOU)`, myPos.x, myPos.y - 44);
+
+    // Render Local Held Item
+    const holding = localHoldingRef.current;
+    if (holding) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(`HOLDING: [${holding.replace('raw_', '').replace('plated:', 'PLATE: ')}]`, myPos.x, myPos.y + 38);
+    }
+
+    // 12. Interactive Prompt Overlay
+    const p = localPosRef.current;
+    let prompt = '';
+    if (p.y > 440) {
+      if (p.x >= 100 && p.x < 220) prompt = 'PRESS [SPACE] / [E]: PICK BUN';
+      else if (p.x >= 220 && p.x < 340) prompt = 'PRESS [SPACE] / [E]: PICK RAW PATTY';
+      else if (p.x >= 340 && p.x < 460) prompt = 'PRESS [SPACE] / [E]: PICK LETTUCE';
+      else if (p.x >= 460 && p.x < 580) prompt = 'PRESS [SPACE] / [E]: PICK TOMATO';
+      else if (p.x >= 580 && p.x < 700) prompt = 'PRESS [SPACE] / [E]: PICK CHEESE';
+    } else if (p.y < 260 && p.x >= 180 && p.x < 440) {
+      prompt = holding === 'raw_patty' ? 'PRESS [SPACE]: PLACE PATTY ON STOVE' : 'PRESS [SPACE]: INTERACT WITH STOVE';
+    } else if (p.y < 260 && p.x >= 450 && p.x < 640) {
+      prompt = 'PRESS [SPACE] REPEATEDLY: CHOP VEGGIE';
+    } else if (p.y >= 350 && p.y <= 460 && p.x >= 270 && p.x <= 520) {
+      prompt = holding ? 'PRESS [SPACE]: ADD INGREDIENT TO PLATE' : 'PRESS [SPACE]: PICK UP ASSEMBLED DISH';
+    } else if (p.x < 200) {
+      prompt = holding && holding.startsWith('plated:') ? 'PRESS [SPACE]: DELIVER ORDER TO HATCH! 🔔' : 'STAND HERE WITH PLATED DISH TO DELIVER';
+    } else if (p.x > 640) {
+      prompt = 'PRESS [Q] / [SPACE]: TOSS IN TRASH 🗑️';
+    }
+
+    activePromptRef.current = prompt;
+    if (prompt) {
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(width / 2 - 160, height - 34, 320, 26);
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(width / 2 - 160, height - 34, 320, 26);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(prompt, width / 2, height - 17);
+    }
 
     animFrameRef.current = requestAnimationFrame(renderKitchen);
-  }, [playerName, myPlayerId]);
+  }, [playerName, myPlayerId, networkMode]);
 
   useEffect(() => {
     animFrameRef.current = requestAnimationFrame(renderKitchen);
@@ -908,7 +1265,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
               <div className="border-t-2 border-zinc-400 pt-2">
                 <button
                   onClick={() => {
-                    setNetworkMode('solo');
                     handleStartShift();
                   }}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-2.5 px-3 rounded-xl border-2 border-black shadow text-xs uppercase"
@@ -942,15 +1298,12 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
         {showDailyReview && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-md space-y-4">
             <div className="bg-amber-100 border-4 border-black p-6 rounded-2xl max-w-md w-full shadow-2xl text-black space-y-3">
-              {/* Asset Description Placeholder for Canva AI Generation */}
-              {/* CANVA_AI_ASSET: Retro MS Paint comic certificate with gold stamped stars and greasy chef thumbprints */}
               <div className="bg-yellow-300 border-2 border-black p-1.5 rounded text-[10px] font-black uppercase tracking-wider">
                 📋 DAILY RESTAURANT INSPECTION REPORT
               </div>
 
               <h3 className="text-3xl font-black text-black">SHIFT FINISHED!</h3>
 
-              {/* Star Rating Display */}
               <div className="flex items-center justify-center gap-1.5 text-2xl text-amber-500">
                 {[...Array(5)].map((_, i) => (
                   <span key={i} className={i < Math.floor(starRating) ? 'text-amber-500' : 'text-zinc-400'}>
@@ -960,7 +1313,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
                 <span className="text-sm font-black text-black ml-1.5">({starRating.toFixed(1)} / 5.0)</span>
               </div>
 
-              {/* Humorous Customer Review Box */}
               <div className="bg-white border-2 border-black p-3 rounded-lg text-xs italic text-zinc-800 font-serif">
                 {customerReview}
               </div>
@@ -974,7 +1326,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
                 </div>
               </div>
 
-              {/* Thematic Rewarded Ad Buttons */}
               <div className="space-y-2 pt-2 border-t-2 border-black">
                 <button
                   onClick={handleWatchRewardedAdForDoubleTips}
@@ -1034,13 +1385,13 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
             onClick={() => handleActionButton('interact')}
             className="flex-1 sm:flex-initial bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-black py-3 px-5 rounded-xl border-2 border-black shadow text-xs uppercase"
           >
-            🍳 Interact / Cook
+            🍳 Interact / Cook (E)
           </button>
           <button
             onClick={() => handleActionButton('toss')}
             className="bg-zinc-700 hover:bg-zinc-800 active:scale-95 text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow text-xs uppercase"
           >
-            🗑️ Toss
+            🗑️ Toss (Q)
           </button>
         </div>
       </div>
