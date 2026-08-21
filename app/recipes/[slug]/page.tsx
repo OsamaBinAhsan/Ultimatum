@@ -134,9 +134,22 @@ export default function SingleRecipePage() {
       {/* Header & Title Section */}
       <header className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
+          {recipe.cuisine && (
+            <span className="rounded-full bg-cyan-950/90 border border-cyan-500/50 px-3 py-1 text-xs font-mono font-bold text-cyan-300">
+              {recipe.cuisine} Cuisine
+            </span>
+          )}
           <span className="rounded-full bg-amber-500/10 border border-amber-500/30 px-3 py-1 text-xs font-mono font-bold text-amber-400">
             {recipe.category}
           </span>
+          {recipe.cuisine_tags?.map((ctag) => (
+            <span
+              key={ctag}
+              className="rounded-full bg-zinc-900 border border-cyan-900/50 px-3 py-1 text-xs text-cyan-200 font-medium"
+            >
+              {ctag}
+            </span>
+          ))}
           {recipe.dietary_tags.map((tag) => (
             <span
               key={tag}

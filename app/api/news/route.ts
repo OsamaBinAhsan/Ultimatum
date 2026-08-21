@@ -63,13 +63,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Headline and slug required' }, { status: 400 });
     }
 
+    const category = body.category && body.category !== 'beauty_fashion' ? body.category : 'gaming_news';
+
+    // 1. MySQL Database Save
+    try {
+      await queryMySQL(
+        `INSERT INTO articles (id, slug, title, subtitle, category, hero_image_url, gallery_images, content, tags, author, read_time, is_breaking, shoppable_items, published_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+           slug = VALUES(slug),
+           title = VALUES(title),
+           subtitle = VALUES(subtitle),
+           category = VALUES(category),
+           hero_image_url = VALUES(hero_image_url),
+           gallery_images = VALUES(gallery_images),
+           content = VALUES(content),
+           tags = VALUES(tags),
+           author = VALUES(author),
+           read_time = VALUES(read_time),
+           is_breaking = VALUES(is_breaking),
+           shoppable_items = VALUES(shoppable_items),
+           updated_at = NOW()`,
+        [
+          body.id || `art-${Date.now()}`,
+          body.slug,
+          body.title,
+          body.subtitle || '',
+          category,
+          body.hero_image_url || '',
+          JSON.stringify(body.gallery_images || []),
+          body.content || '',
+          JSON.stringify(body.tags || []),
+          body.author || 'Ultimatum Dispatch',
+          body.read_time || 5,
+          body.is_breaking ? 1 : 0,
+          JSON.stringify(body.shoppable_items || []),
+          body.published_at || new Date().toISOString(),
+          body.created_at || new Date().toISOString(),
+        ]
+      );
+    } catch (mysqlErr) {
+      console.warn('MySQL news article save skipped:', mysqlErr);
+    }
+
     if (isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('articles').upsert(body).select().single();
+      const { data, error } = await supabase.from('articles').upsert({ ...body, category }).select().single();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, data });
     }
 
-    const saved = platformStore.saveArticle(body);
+    const saved = platformStore.saveArticle({ ...body, category });
     return NextResponse.json({ success: true, data: saved });
   } catch (err: unknown) {
     const errorObj = err as Error;

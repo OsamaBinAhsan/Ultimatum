@@ -19,6 +19,7 @@ import { platformStore } from '@/lib/data/store';
 import { Article } from '@/lib/types';
 import { ReadingMeritsTracker } from '@/components/merits/ReadingMeritsTracker';
 import { AdSlot } from '@/components/monetization/AdSlot';
+import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
 
 export default function SingleBeautyFashionPage() {
   const params = useParams();
@@ -194,11 +195,9 @@ export default function SingleBeautyFashionPage() {
         </section>
       )}
 
-      {/* Main Content Body */}
-      <div className="prose prose-invert max-w-none text-zinc-200 leading-relaxed space-y-6">
-        <div className="whitespace-pre-line rounded-3xl border border-zinc-800/80 bg-zinc-900/30 p-6 sm:p-10 shadow-xl">
-          {article.content}
-        </div>
+      {/* Main Content Body with Embedded Links & Media */}
+      <div className="rounded-3xl border border-zinc-800/80 bg-zinc-900/30 p-6 sm:p-10 shadow-xl">
+        <ArticleBodyRenderer content={article.content} />
       </div>
 
       {/* Multi-Image Gallery Grid (Click to Zoom Lightbox) */}

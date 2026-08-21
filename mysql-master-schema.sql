@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS `recipes` (
     `servings` INT DEFAULT 4 NOT NULL,
     `calories` INT NOT NULL,
     `category` VARCHAR(100) NOT NULL,
+    `cuisine` VARCHAR(100) NULL,
+    `cuisine_tags` JSON NULL,
     `dietary_tags` JSON NULL,
     `ingredients` JSON NOT NULL,
     `instructions` JSON NOT NULL,

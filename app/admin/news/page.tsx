@@ -11,15 +11,22 @@ import {
   Eye,
   CheckCircle,
   Zap,
+  Link as LinkIcon,
+  Video,
+  Quote,
+  List,
+  Heading,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Article, ArticleCategory } from '@/lib/types';
 import confetti from 'canvas-confetti';
+import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
 
 export default function AdminNewsManager() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'write' | 'preview'>('write');
 
   const [form, setForm] = useState<Article>({
     id: '',
@@ -218,14 +225,93 @@ export default function AdminNewsManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Article Body (Markdown)</label>
-              <textarea
-                rows={8}
-                required
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-mono text-zinc-400 uppercase">Article Body (Markdown & Embedded Links/Videos)</label>
+                
+                {/* Write / Preview Mode Toggle */}
+                <div className="flex items-center rounded-lg bg-zinc-950 border border-zinc-800 p-0.5 text-[11px] font-mono">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('write')}
+                    className={`px-3 py-1 rounded-md transition-all ${
+                      activeTab === 'write' ? 'bg-red-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Write
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('preview')}
+                    className={`px-3 py-1 rounded-md transition-all ${
+                      activeTab === 'preview' ? 'bg-red-600 text-white font-bold' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Live Preview
+                  </button>
+                </div>
+              </div>
+
+              {activeTab === 'write' ? (
+                <div className="space-y-2">
+                  {/* Quick Embed Toolbar */}
+                  <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs">
+                    <span className="text-[10px] font-mono text-zinc-500 uppercase px-1">Quick Embed:</span>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, content: prev.content + '\n[Link Title](https://example.com)' }))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/60 text-[11px] text-cyan-300 hover:bg-zinc-800 hover:border-cyan-500/50 transition-all"
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>+ Link</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, content: prev.content + '\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ' }))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/60 text-[11px] text-red-300 hover:bg-zinc-800 hover:border-red-500/50 transition-all"
+                    >
+                      <Video className="w-3 h-3" />
+                      <span>+ YouTube Embed</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, content: prev.content + '\n## Section Subheading' }))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/60 text-[11px] text-amber-300 hover:bg-zinc-800 hover:border-amber-500/50 transition-all"
+                    >
+                      <Heading className="w-3 h-3" />
+                      <span>+ Subheading</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, content: prev.content + '\n> Key takeaway or expert quote from industry leader.' }))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/60 text-[11px] text-purple-300 hover:bg-zinc-800 hover:border-purple-500/50 transition-all"
+                    >
+                      <Quote className="w-3 h-3" />
+                      <span>+ Pull-Quote</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, content: prev.content + '\n- Bullet feature item\n- Second benchmark detail' }))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-700/60 text-[11px] text-emerald-300 hover:bg-zinc-800 hover:border-emerald-500/50 transition-all"
+                    >
+                      <List className="w-3 h-3" />
+                      <span>+ List</span>
+                    </button>
+                  </div>
+
+                  <textarea
+                    rows={9}
+                    required
+                    value={form.content}
+                    onChange={(e) => setForm({ ...form, content: e.target.value })}
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-200 focus:border-red-500 focus:outline-none"
+                    placeholder="Write article body with [Links](url), embedded YouTube URLs, # Headings, and > Quotes..."
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-6 min-h-[220px]">
+                  <ArticleBodyRenderer content={form.content} />
+                </div>
+              )}
             </div>
 
             <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-zinc-950 border border-zinc-800">

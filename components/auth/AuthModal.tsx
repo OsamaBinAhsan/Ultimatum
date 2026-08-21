@@ -262,7 +262,7 @@ export function AuthModal({
             <div className="relative flex items-center justify-center">
               <div className="w-full border-t border-zinc-800" />
               <span className="absolute bg-zinc-950 px-2 text-[10px] font-mono text-zinc-500 uppercase">
-                Or Supabase Email
+                Or With Email & Password
               </span>
             </div>
 

@@ -34,6 +34,8 @@ export default function AdminRecipesManager() {
     servings: 4,
     calories: 540,
     category: 'Pasta & Italian',
+    cuisine: 'Italian',
+    cuisine_tags: ['Italian Cuisine', 'Pasta'],
     dietary_tags: ['Comfort Food'],
     ingredients: [
       { item: 'Main Protein or Pasta', amount: 16, unit: 'oz', notes: 'Fresh' },
@@ -66,7 +68,9 @@ export default function AdminRecipesManager() {
       cook_time: 30,
       servings: 4,
       calories: 520,
-      category: 'Pasta & Italian',
+      category: 'Curries & Stews',
+      cuisine: 'Indian',
+      cuisine_tags: ['Indian Cuisine', 'Curry'],
       dietary_tags: ['Chef Special', 'Quick Dinner'],
       ingredients: [
         { item: 'Fresh Pasta or Grain', amount: 16, unit: 'oz', notes: 'Al dente' },
@@ -264,6 +268,88 @@ export default function AdminRecipesManager() {
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">
+                  Food Category
+                </label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="Curries & Stews">Curries & Stews</option>
+                  <option value="Pasta & Italian">Pasta & Italian</option>
+                  <option value="Asian & Stir-Fry">Asian & Stir-Fry</option>
+                  <option value="Seafood & Bowls">Seafood & Bowls</option>
+                  <option value="Steakhouse & Grills">Steakhouse & Grills</option>
+                  <option value="Mexican & Street Food">Mexican & Street Food</option>
+                  <option value="Poultry & Mains">Poultry & Mains</option>
+                  <option value="Breakfast & Brunch">Breakfast & Brunch</option>
+                  <option value="Desserts & Baking">Desserts & Baking</option>
+                  <option value="Artisanal Pizzas & Breads">Artisanal Pizzas & Breads</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">
+                  Cuisine (Origin)
+                </label>
+                <select
+                  value={form.cuisine || 'Indian'}
+                  onChange={(e) => setForm({ ...form, cuisine: e.target.value })}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-cyan-300 font-bold focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="Indian">Indian Cuisine</option>
+                  <option value="Desi">Desi Cuisine</option>
+                  <option value="Chinese">Chinese Cuisine</option>
+                  <option value="Italian">Italian Cuisine</option>
+                  <option value="Japanese">Japanese Cuisine</option>
+                  <option value="Mexican">Mexican Cuisine</option>
+                  <option value="American">American Cuisine</option>
+                  <option value="Mediterranean">Mediterranean Cuisine</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">
+                  Cuisine Tags (Comma Separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Indian Cuisine, Mughlai, Curry"
+                  value={form.cuisine_tags?.join(', ') || ''}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      cuisine_tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
+                    })
+                  }
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">
+                  Dietary & Lifestyle Tags (Comma Separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. High Protein, Comfort Food, Quick Dinner"
+                  value={form.dietary_tags?.join(', ') || ''}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      dietary_tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
+                    })
+                  }
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-white placeholder-zinc-600 focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Prep Time (mins)</label>
@@ -313,6 +399,18 @@ export default function AdminRecipesManager() {
                 value={form.hero_image_url}
                 onChange={(e) => setForm({ ...form, hero_image_url: e.target.value })}
                 className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300 font-mono focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">
+                Author / Chef Attribution
+              </label>
+              <input
+                type="text"
+                value={form.author}
+                onChange={(e) => setForm({ ...form, author: e.target.value })}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"
               />
             </div>
 
@@ -477,8 +575,15 @@ export default function AdminRecipesManager() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white">{r.title}</h4>
-                  <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
-                    <span>{r.category}</span>
+                  <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-1">
+                    {r.cuisine && (
+                      <span className="rounded bg-cyan-950/80 border border-cyan-700/50 px-1.5 py-0.5 text-[10px] text-cyan-300 font-bold">
+                        {r.cuisine}
+                      </span>
+                    )}
+                    <span className="rounded bg-amber-950/80 border border-amber-700/50 px-1.5 py-0.5 text-[10px] text-amber-300 font-bold">
+                      {r.category}
+                    </span>
                     <span>•</span>
                     <span>{r.ingredients.length} ingredients</span>
                     <span>•</span>

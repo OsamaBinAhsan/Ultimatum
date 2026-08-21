@@ -365,8 +365,8 @@ export default function HomePage() {
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-black font-mono text-zinc-400">#{idx + 1}</span>
                     <div>
-                      <div className="text-xs font-bold text-white">{entry.profile?.username}</div>
-                      <div className="text-[10px] text-zinc-500 font-mono">{entry.profile?.badges[0]}</div>
+                      <div className="text-xs font-bold text-white">{entry.player_name || entry.profile?.username || 'Player'}</div>
+                      <div className="text-[10px] text-zinc-500 font-mono">{entry.profile?.badges?.[0] || 'Gamer'}</div>
                     </div>
                   </div>
                   <div className="font-mono text-sm font-black text-cyan-400">{entry.score.toLocaleString()}</div>

@@ -37,12 +37,15 @@ export interface LeaderboardEntry {
   user_id: string;
   game_id: string;
   score: number;
-  week_timestamp: string;
+  week_timestamp?: string;
   created_at: string;
+  player_name?: string;
+  avatar_url?: string;
+  rank?: number;
   profile?: {
     username: string;
     avatar_url: string;
-    badges: string[];
+    badges?: string[];
   };
 }
 
@@ -78,6 +81,8 @@ export interface Recipe {
   servings: number;
   calories: number;
   category: string;
+  cuisine?: string;
+  cuisine_tags?: string[];
   dietary_tags: string[];
   ingredients: RecipeIngredient[];
   instructions: RecipeInstruction[];

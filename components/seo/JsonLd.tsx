@@ -22,7 +22,14 @@ export function RecipeJsonLd({ recipe }: RecipeJsonLdProps) {
     totalTime: `PT${recipe.prep_time + recipe.cook_time}M`,
     recipeYield: `${recipe.servings} servings`,
     recipeCategory: recipe.category,
-    keywords: recipe.dietary_tags.join(', '),
+    recipeCuisine: recipe.cuisine,
+    keywords: [
+      recipe.cuisine ? `${recipe.cuisine} Cuisine` : null,
+      ...(recipe.cuisine_tags || []),
+      ...recipe.dietary_tags,
+    ]
+      .filter(Boolean)
+      .join(', '),
     nutrition: {
       '@type': 'NutritionInformation',
       calories: `${recipe.calories} calories`,

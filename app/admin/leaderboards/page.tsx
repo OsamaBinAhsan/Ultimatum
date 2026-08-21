@@ -24,14 +24,19 @@ export default function AdminLeaderboardModeration() {
   useEffect(() => {
     setScores(platformStore.getLeaderboard());
     setGames(platformStore.getGames());
+    platformStore.syncLeaderboardFromApi().then((synced) => {
+      setScores(synced);
+    });
   }, []);
 
   const handleFilterChange = (id: string) => {
     setSelectedGameId(id);
     if (id === 'all') {
       setScores(platformStore.getLeaderboard());
+      platformStore.syncLeaderboardFromApi().then((synced) => setScores(synced));
     } else {
       setScores(platformStore.getLeaderboard(id));
+      platformStore.syncLeaderboardFromApi(id).then((synced) => setScores(synced));
     }
   };
 

@@ -36,6 +36,9 @@ export default function SingleGamePage() {
     if (foundGame) {
       setGame(foundGame);
       setLeaderboard(platformStore.getLeaderboard(foundGame.id));
+      platformStore.syncLeaderboardFromApi(foundGame.id).then((synced) => {
+        setLeaderboard(synced);
+      });
     }
   }, [slug]);
 
@@ -48,8 +51,11 @@ export default function SingleGamePage() {
   if (!game) return null;
 
   const handleScoreSubmitted = () => {
-    // Refresh leaderboard
+    // Refresh leaderboard locally and sync with API
     setLeaderboard(platformStore.getLeaderboard(game.id));
+    platformStore.syncLeaderboardFromApi(game.id).then((synced) => {
+      setLeaderboard(synced);
+    });
   };
 
   const handleShare = () => {

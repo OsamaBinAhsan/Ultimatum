@@ -78,11 +78,32 @@ class PlatformStore {
         this.games = [...storedGames, ...missingGames];
       }
       const r = localStorage.getItem('ultimatum_recipes');
-      if (r) this.recipes = JSON.parse(r);
+      if (r) {
+        const storedRecipes: Recipe[] = JSON.parse(r);
+        const existingIds = new Set(storedRecipes.map((item) => item.id || item.slug));
+        const missingRecipes = INITIAL_RECIPES.filter(
+          (item) => !existingIds.has(item.id) && !existingIds.has(item.slug)
+        );
+        this.recipes = [...storedRecipes, ...missingRecipes];
+      }
       const rev = localStorage.getItem('ultimatum_reviews');
-      if (rev) this.reviews = JSON.parse(rev);
+      if (rev) {
+        const storedReviews: Review[] = JSON.parse(rev);
+        const existingIds = new Set(storedReviews.map((item) => item.id || item.slug));
+        const missingReviews = INITIAL_REVIEWS.filter(
+          (item) => !existingIds.has(item.id) && !existingIds.has(item.slug)
+        );
+        this.reviews = [...storedReviews, ...missingReviews];
+      }
       const a = localStorage.getItem('ultimatum_articles');
-      if (a) this.articles = JSON.parse(a);
+      if (a) {
+        const storedArticles: Article[] = JSON.parse(a);
+        const existingIds = new Set(storedArticles.map((item) => item.id || item.slug));
+        const missingArticles = INITIAL_ARTICLES.filter(
+          (item) => !existingIds.has(item.id) && !existingIds.has(item.slug)
+        );
+        this.articles = [...storedArticles, ...missingArticles];
+      }
       const s = localStorage.getItem('ultimatum_sponsors');
       if (s) this.sponsors = JSON.parse(s);
       const p = localStorage.getItem('ultimatum_pages');
@@ -332,6 +353,47 @@ class PlatformStore {
     }
     return list.sort((a, b) => b.score - a.score);
   }
+
+  async syncLeaderboardFromApi(gameId?: string): Promise<LeaderboardEntry[]> {
+    if (typeof window === 'undefined') return this.getLeaderboard(gameId);
+    try {
+      const url = gameId ? `/api/leaderboards?game_id=${gameId}` : '/api/leaderboards';
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const apiEntries: LeaderboardEntry[] = json.data.map((row: any, idx: number) => ({
+            id: row.id,
+            user_id: row.user_id,
+            game_id: row.game_id,
+            score: Number(row.score),
+            player_name: row.player_name || row.profile?.username || 'Player',
+            avatar_url: row.avatar_url || row.profile?.avatar_url,
+            created_at: row.created_at || new Date().toISOString(),
+            rank: row.rank || idx + 1,
+            profile: {
+              username: row.player_name || row.profile?.username || 'Player',
+              avatar_url: row.avatar_url || row.profile?.avatar_url,
+              badges: row.badges || row.profile?.badges || [],
+            },
+          }));
+
+          // Merge with existing leaderboard (avoiding duplicates)
+          const map = new Map<string, LeaderboardEntry>();
+          apiEntries.forEach((e) => map.set(e.id, e));
+          this.leaderboard.forEach((e) => {
+            if (!map.has(e.id)) map.set(e.id, e);
+          });
+          this.leaderboard = Array.from(map.values()).sort((a, b) => b.score - a.score);
+          this.saveToLocalStorage();
+        }
+      }
+    } catch (e) {
+      console.warn('Could not sync leaderboard with API:', e);
+    }
+    return this.getLeaderboard(gameId);
+  }
+
   submitScore(gameId: string, score: number): LeaderboardEntry {
     const user = this.currentUser || this.profiles[0];
     const entry: LeaderboardEntry = {
@@ -339,6 +401,8 @@ class PlatformStore {
       user_id: user.id,
       game_id: gameId,
       score,
+      player_name: user.username,
+      avatar_url: user.avatar_url,
       week_timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
       profile: {
@@ -361,16 +425,39 @@ class PlatformStore {
     }
 
     this.saveToLocalStorage();
+
+    // Asynchronously persist to backend MySQL / Supabase Database
+    if (typeof window !== 'undefined') {
+      fetch('/api/leaderboards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game_id: gameId,
+          score,
+          user_id: user.id,
+          username: user.username,
+        }),
+      }).catch((err) => {
+        console.warn('Async leaderboard API submission failed:', err);
+      });
+    }
+
     return entry;
   }
   deleteLeaderboardScore(id: string) {
     this.leaderboard = this.leaderboard.filter((e) => e.id !== id);
     this.saveToLocalStorage();
+    if (typeof window !== 'undefined') {
+      fetch(`/api/leaderboards?id=${id}`, { method: 'DELETE' }).catch(() => {});
+    }
   }
   triggerWeeklyReset(): { resetCount: number; timestamp: string } {
     const count = this.leaderboard.length;
     this.leaderboard = [];
     this.saveToLocalStorage();
+    if (typeof window !== 'undefined') {
+      fetch('/api/leaderboards/reset', { method: 'POST' }).catch(() => {});
+    }
     return { resetCount: count, timestamp: new Date().toISOString() };
   }
 
