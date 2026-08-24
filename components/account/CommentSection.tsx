@@ -32,14 +32,14 @@ export function CommentSection({
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const [postError, setPostError] = useState<string | null>(null);
+
   const user = platformStore.getCurrentUser();
   const isAdmin = user?.role === 'admin';
 
   const fetchComments = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/account/comments?contentType=${contentType}&contentId=${contentId}`
-      );
+      const res = await fetch(`/api/comments?post_id=${contentId}`);
       const data = await res.json();
       setComments(data.data || []);
     } catch {
@@ -47,7 +47,7 @@ export function CommentSection({
     } finally {
       setLoading(false);
     }
-  }, [contentType, contentId]);
+  }, [contentId]);
 
   useEffect(() => {
     fetchComments();
@@ -55,6 +55,7 @@ export function CommentSection({
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPostError(null);
     if (!user) {
       if (onAuthRequired) onAuthRequired();
       return;
@@ -62,19 +63,26 @@ export function CommentSection({
     if (!body.trim() || body.length < 2) return;
     setPosting(true);
     try {
-      await fetch('/api/account/comments', {
+      const res = await fetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user.id,
+          post_id: contentId,
+          user_id: user.id,
+          content: body.trim(),
           content_type: contentType,
-          content_id: contentId,
           content_slug: contentSlug,
-          body: body.trim(),
         }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setPostError(data.error || 'Failed to post comment. Please try again.');
+        return;
+      }
       setBody('');
       await fetchComments();
+    } catch (err: unknown) {
+      setPostError((err as Error).message || 'Network error while posting comment.');
     } finally {
       setPosting(false);
     }
@@ -129,6 +137,12 @@ export function CommentSection({
             maxLength={1000}
             className="w-full resize-none rounded-2xl border border-zinc-800 bg-zinc-950 p-3.5 text-xs text-white placeholder-zinc-600 focus:border-cyan-500 focus:outline-none leading-relaxed"
           />
+
+          {postError && (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-mono text-rose-400">
+              {postError}
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-zinc-600 font-mono">{body.length}/1000</span>
