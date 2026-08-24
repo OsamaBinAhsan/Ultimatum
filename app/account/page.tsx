@@ -87,12 +87,20 @@ export default function AccountPage() {
         if (data.data && data.data.length > 0) {
           setComments(data.data);
         } else {
-          setComments(platformStore.getComments(undefined, user.id));
+          const local = platformStore.getComments(undefined, undefined, user.id).map(c => ({
+            ...c,
+            content_slug: c.content_slug || c.content_id,
+          }));
+          setComments(local);
         }
       }
     } catch {
       if (t === 'comments') {
-        setComments(platformStore.getComments(undefined, user.id));
+        const local = platformStore.getComments(undefined, undefined, user.id).map(c => ({
+          ...c,
+          content_slug: c.content_slug || c.content_id,
+        }));
+        setComments(local);
       }
     } finally {
       setLoading(false);

@@ -476,7 +476,7 @@ class PlatformStore {
 
     this.saveToLocalStorage();
 
-    // Asynchronously persist to backend MySQL Database
+    // Asynchronously persist to backend SQL Server Database
     if (typeof window !== 'undefined') {
       fetch('/api/leaderboards', {
         method: 'POST',

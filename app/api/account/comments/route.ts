@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 
 export async function GET(request: Request) {
@@ -10,8 +10,8 @@ export async function GET(request: Request) {
     const contentId = searchParams.get('contentId');
 
     if (userId) {
-      const rows = (await queryMySQL(
-        `SELECT * FROM \`user_comments\` WHERE \`user_id\` = ? AND \`is_flagged\` = 0 ORDER BY \`created_at\` DESC LIMIT 50`,
+      const rows = (await querySQLServer(
+        `SELECT TOP 50 * FROM [user_comments] WHERE [user_id] = ? AND [is_flagged] = 0 ORDER BY [created_at] DESC`,
         [userId]
       )) as any[];
       if (rows && rows.length > 0) {
@@ -22,11 +22,11 @@ export async function GET(request: Request) {
     }
 
     if (contentType && contentId) {
-      const rows = (await queryMySQL(
-        `SELECT c.*, p.username, p.avatar_url FROM \`user_comments\` c
-         LEFT JOIN \`profiles\` p ON c.user_id = p.id
+      const rows = (await querySQLServer(
+        `SELECT TOP 50 c.*, p.username, p.avatar_url FROM [user_comments] c
+         LEFT JOIN [profiles] p ON c.user_id = p.id
          WHERE c.content_type = ? AND c.content_id = ? AND c.is_flagged = 0
-         ORDER BY c.created_at DESC LIMIT 50`,
+         ORDER BY c.created_at DESC`,
         [contentType, contentId]
       )) as any[];
       if (rows && rows.length > 0) {
@@ -63,8 +63,8 @@ export async function POST(request: Request) {
     });
 
     try {
-      await queryMySQL(
-        `INSERT INTO \`user_comments\` (\`user_id\`, \`content_type\`, \`content_id\`, \`content_slug\`, \`body\`)
+      await querySQLServer(
+        `INSERT INTO [user_comments] ([user_id], [content_type], [content_id], [content_slug], [body])
          VALUES (?, ?, ?, ?, ?)`,
         [userId, content_type, content_id, content_slug || '', body.trim()]
       );
@@ -88,8 +88,8 @@ export async function DELETE(request: Request) {
     platformStore.deleteComment(commentId, userId || undefined);
 
     try {
-      await queryMySQL(
-        `DELETE FROM \`user_comments\` WHERE \`id\` = ?`,
+      await querySQLServer(
+        `DELETE FROM [user_comments] WHERE [id] = ?`,
         [commentId]
       );
     } catch {}
@@ -99,4 +99,5 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: false, error: (err as Error).message }, { status: 500 });
   }
 }
+
 

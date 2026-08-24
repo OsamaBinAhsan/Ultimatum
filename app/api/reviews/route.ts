@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,21 +10,21 @@ export async function GET(request: Request) {
   // Trigger local scheduler checks
   platformStore.autoPublishScheduled();
 
-  // 1. Check MySQL
+  // 1. Check SQL Server
   try {
     if (slug) {
-      const rows = (await queryMySQL('SELECT * FROM `reviews` WHERE `slug` = ? LIMIT 1', [slug])) as any[];
+      const rows = (await querySQLServer('SELECT TOP 1 * FROM [reviews] WHERE [slug] = ?', [slug])) as any[];
       if (rows && rows.length > 0) {
         return NextResponse.json({ success: true, data: rows[0] });
       }
     } else if (status === 'all') {
-      const rows = (await queryMySQL('SELECT * FROM `reviews` ORDER BY `created_at` DESC')) as any[];
+      const rows = (await querySQLServer('SELECT * FROM [reviews] ORDER BY [created_at] DESC')) as any[];
       if (rows && rows.length > 0) {
         return NextResponse.json({ success: true, count: rows.length, data: rows });
       }
     } else if (status) {
-      const rows = (await queryMySQL(
-        'SELECT * FROM `reviews` WHERE `status` = ? ORDER BY `created_at` DESC',
+      const rows = (await querySQLServer(
+        'SELECT * FROM [reviews] WHERE [status] = ? ORDER BY [created_at] DESC',
         [status]
       )) as any[];
       if (rows && rows.length > 0) {
@@ -32,15 +32,15 @@ export async function GET(request: Request) {
       }
     } else {
       // Public feed: only published or past due scheduled
-      const rows = (await queryMySQL(
-        "SELECT * FROM `reviews` WHERE `status` = 'published' OR `status` IS NULL OR (`status` = 'scheduled' AND `scheduled_for` <= NOW()) ORDER BY `created_at` DESC"
+      const rows = (await querySQLServer(
+        "SELECT * FROM [reviews] WHERE [status] = 'published' OR [status] IS NULL OR ([status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()) ORDER BY [created_at] DESC"
       )) as any[];
       if (rows && rows.length > 0) {
         return NextResponse.json({ success: true, count: rows.length, data: rows });
       }
     }
   } catch (e) {
-    // MySQL query fallback
+    // SQL Server query fallback
   }
 
   // 2. Fallback to PlatformStore
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     let status = body.status || 'published';
     let scheduled_for = body.scheduled_for || null;
+    const reviewId = body.id || `rev-${Date.now()}`;
 
     if (status === 'scheduled' && scheduled_for) {
       if (new Date(scheduled_for).getTime() <= Date.now()) {
@@ -66,28 +67,44 @@ export async function POST(request: Request) {
       }
     }
 
-    // MySQL upsert attempt
+    // SQL Server upsert attempt
     try {
-      if (body.id && body.slug && body.product_name) {
-        await queryMySQL(
-          `INSERT INTO \`reviews\` (\`id\`, \`slug\`, \`product_name\`, \`category\`, \`rating\`, \`summary\`, \`verdict\`, \`pros\`, \`cons\`, \`specifications\`, \`affiliate_link\`, \`affiliate_retailer\`, \`hero_image_url\`, \`author\`, \`status\`, \`scheduled_for\`)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             \`product_name\` = VALUES(\`product_name\`),
-             \`category\` = VALUES(\`category\`),
-             \`rating\` = VALUES(\`rating\`),
-             \`summary\` = VALUES(\`summary\`),
-             \`verdict\` = VALUES(\`verdict\`),
-             \`pros\` = VALUES(\`pros\`),
-             \`cons\` = VALUES(\`cons\`),
-             \`specifications\` = VALUES(\`specifications\`),
-             \`affiliate_link\` = VALUES(\`affiliate_link\`),
-             \`affiliate_retailer\` = VALUES(\`affiliate_retailer\`),
-             \`hero_image_url\` = VALUES(\`hero_image_url\`),
-             \`status\` = VALUES(\`status\`),
-             \`scheduled_for\` = VALUES(\`scheduled_for\`)`,
+      if (body.slug && body.product_name) {
+        await querySQLServer(
+          `IF EXISTS (SELECT 1 FROM [reviews] WHERE [id] = ? OR [slug] = ?)
+           BEGIN
+             UPDATE [reviews]
+             SET [product_name] = ?, [category] = ?, [rating] = ?, [summary] = ?,
+                 [verdict] = ?, [pros] = ?, [cons] = ?, [specifications] = ?,
+                 [affiliate_link] = ?, [affiliate_retailer] = ?, [hero_image_url] = ?,
+                 [status] = ?, [scheduled_for] = ?, [updated_at] = GETUTCDATE()
+             WHERE [id] = ? OR [slug] = ?
+           END
+           ELSE
+           BEGIN
+             INSERT INTO [reviews] ([id], [slug], [product_name], [category], [rating], [summary], [verdict], [pros], [cons], [specifications], [affiliate_link], [affiliate_retailer], [hero_image_url], [author], [status], [scheduled_for], [created_at], [updated_at])
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETUTCDATE(), GETUTCDATE())
+           END`,
           [
-            body.id,
+            // IF EXISTS check
+            reviewId, body.slug,
+            // UPDATE
+            body.product_name,
+            body.category || 'tech_hardware',
+            body.rating || 4.5,
+            body.summary || '',
+            body.verdict || '',
+            JSON.stringify(body.pros || []),
+            JSON.stringify(body.cons || []),
+            JSON.stringify(body.specifications || {}),
+            body.affiliate_link || null,
+            body.affiliate_retailer || null,
+            body.hero_image_url || '',
+            status,
+            scheduled_for,
+            reviewId, body.slug,
+            // INSERT
+            reviewId,
             body.slug,
             body.product_name,
             body.category || 'tech_hardware',
@@ -107,14 +124,15 @@ export async function POST(request: Request) {
         );
       }
     } catch (dbErr) {
-      console.warn('MySQL save review skipped:', dbErr);
+      console.warn('SQL Server save review skipped:', dbErr);
     }
 
-    const saved = platformStore.saveReview({ ...body, status, scheduled_for });
+    const saved = platformStore.saveReview({ ...body, id: reviewId, status, scheduled_for });
     return NextResponse.json({ success: true, data: saved });
   } catch (err: unknown) {
     const errorObj = err as Error;
     return NextResponse.json({ success: false, error: errorObj.message || 'Failed to save review' }, { status: 500 });
   }
 }
+
 

@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
-import { queryMySQL, getMySQLPool } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 
 export async function POST() {
   try {
-    // 1. MySQL Reset
+    // 1. SQL Server Reset
     try {
-      const pool = getMySQLPool();
-      if (pool) {
-        await queryMySQL('DELETE FROM leaderboards');
-      }
+      await querySQLServer('DELETE FROM [leaderboards]');
     } catch (dbErr) {
-      console.warn('MySQL weekly leaderboard reset error:', dbErr);
+      console.warn('SQL Server weekly leaderboard reset error:', dbErr);
     }
 
     // 2. Platform Store Reset
@@ -26,3 +23,4 @@ export async function POST() {
     return NextResponse.json({ success: false, error: errorObj.message || 'Failed to reset leaderboards' }, { status: 500 });
   }
 }
+

@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get('slug');
 
-  // 1. HostGator MySQL Database
+  // 1. SQL Server Database
   try {
     if (slug) {
-      const mysqlRes = await queryMySQL('SELECT * FROM articles WHERE category = "beauty_fashion" AND slug = ? LIMIT 1', [slug]);
-      if (mysqlRes && Array.isArray(mysqlRes) && mysqlRes.length > 0) {
-        return NextResponse.json({ success: true, data: mysqlRes[0] });
+      const dbRes = await querySQLServer("SELECT TOP 1 * FROM [articles] WHERE [category] = 'beauty_fashion' AND [slug] = ?", [slug]);
+      if (dbRes && Array.isArray(dbRes) && dbRes.length > 0) {
+        return NextResponse.json({ success: true, data: dbRes[0] });
       }
     } else {
-      const mysqlRes = await queryMySQL('SELECT * FROM articles WHERE category = "beauty_fashion" ORDER BY published_at DESC');
-      if (mysqlRes && Array.isArray(mysqlRes)) {
-        return NextResponse.json({ success: true, count: mysqlRes.length, data: mysqlRes });
+      const dbRes = await querySQLServer("SELECT * FROM [articles] WHERE [category] = 'beauty_fashion' ORDER BY [published_at] DESC");
+      if (dbRes && Array.isArray(dbRes)) {
+        return NextResponse.json({ success: true, count: dbRes.length, data: dbRes });
       }
     }
   } catch (err) {
-    console.warn('MySQL lifestyle query skipped:', err);
+    console.warn('SQL Server lifestyle query skipped:', err);
   }
 
   // 2. Isomorphic Fallback Store
@@ -41,47 +41,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Title and slug required' }, { status: 400 });
     }
 
-    // 1. MySQL Database Save
+    const postId = body.id || `art-${Date.now()}`;
+
+    // 1. SQL Server Database Save
     try {
-      await queryMySQL(
-        `INSERT INTO articles (id, slug, title, subtitle, category, hero_image_url, gallery_images, content, tags, author, read_time, is_breaking, shoppable_items, published_at, created_at)
-         VALUES (?, ?, ?, ?, 'beauty_fashion', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-           slug = VALUES(slug),
-           title = VALUES(title),
-           subtitle = VALUES(subtitle),
-           category = 'beauty_fashion',
-           hero_image_url = VALUES(hero_image_url),
-           gallery_images = VALUES(gallery_images),
-           content = VALUES(content),
-           tags = VALUES(tags),
-           author = VALUES(author),
-           read_time = VALUES(read_time),
-           is_breaking = VALUES(is_breaking),
-           shoppable_items = VALUES(shoppable_items),
-           updated_at = NOW()`,
+      await querySQLServer(
+        `IF EXISTS (SELECT 1 FROM [articles] WHERE [id] = ? OR [slug] = ?)
+         BEGIN
+           UPDATE [articles]
+           SET [slug] = ?, [title] = ?, [subtitle] = ?, [category] = 'beauty_fashion',
+               [hero_image_url] = ?, [gallery_images] = ?, [content] = ?, [tags] = ?,
+               [author] = ?, [read_time] = ?, [is_breaking] = ?, [shoppable_items] = ?,
+               [updated_at] = GETUTCDATE()
+           WHERE [id] = ? OR [slug] = ?
+         END
+         ELSE
+         BEGIN
+           INSERT INTO [articles] ([id], [slug], [title], [subtitle], [category], [hero_image_url], [gallery_images], [content], [tags], [author], [read_time], [is_breaking], [shoppable_items], [published_at], [created_at], [updated_at])
+           VALUES (?, ?, ?, ?, 'beauty_fashion', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETUTCDATE())
+         END`,
         [
-          body.id || `art-${Date.now()}`,
-          body.slug,
-          body.title,
-          body.subtitle || '',
-          body.hero_image_url || '',
-          JSON.stringify(body.gallery_images || []),
-          body.content || '',
-          JSON.stringify(body.tags || []),
-          body.author || 'Ultimatum Beauty & Style Lab',
-          body.read_time || 5,
-          body.is_breaking ? 1 : 0,
+          postId, body.slug,
+          body.slug, body.title, body.subtitle || '', body.hero_image_url || '',
+          JSON.stringify(body.gallery_images || []), body.content || '', JSON.stringify(body.tags || []),
+          body.author || 'Ultimatum Beauty & Style Lab', body.read_time || 5, body.is_breaking ? 1 : 0,
+          JSON.stringify(body.shoppable_items || []),
+          postId, body.slug,
+          postId, body.slug, body.title, body.subtitle || '', body.hero_image_url || '',
+          JSON.stringify(body.gallery_images || []), body.content || '', JSON.stringify(body.tags || []),
+          body.author || 'Ultimatum Beauty & Style Lab', body.read_time || 5, body.is_breaking ? 1 : 0,
           JSON.stringify(body.shoppable_items || []),
           body.published_at || new Date().toISOString(),
-          body.created_at || new Date().toISOString(),
+          body.created_at || new Date().toISOString()
         ]
       );
-    } catch (mysqlErr) {
-      console.warn('MySQL lifestyle article save skipped:', mysqlErr);
+    } catch (dbErr) {
+      console.warn('SQL Server lifestyle article save skipped:', dbErr);
     }
 
-    const saved = platformStore.saveArticle({ ...body, category: 'beauty_fashion' });
+    const saved = platformStore.saveArticle({ ...body, id: postId, category: 'beauty_fashion' });
     return NextResponse.json({ success: true, data: saved });
   } catch (err: unknown) {
     const errorObj = err as Error;

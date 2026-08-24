@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 import type { PostStatus } from '@/lib/types';
 
@@ -52,30 +52,31 @@ export async function POST(req: NextRequest) {
 
     if (type === 'recipe') {
       try {
-        await queryMySQL(
-          `INSERT INTO \`recipes\` (
-             \`id\`, \`slug\`, \`title\`, \`description\`, \`hero_image_url\`, \`status\`, \`scheduled_for\`, \`published_at\`
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             \`title\` = VALUES(\`title\`),
-             \`description\` = VALUES(\`description\`),
-             \`hero_image_url\` = VALUES(\`hero_image_url\`),
-             \`status\` = VALUES(\`status\`),
-             \`scheduled_for\` = VALUES(\`scheduled_for\`),
-             \`published_at\` = VALUES(\`published_at\`)`,
+        await querySQLServer(
+          `IF EXISTS (SELECT 1 FROM [recipes] WHERE [id] = ? OR [slug] = ?)
+           BEGIN
+             UPDATE [recipes]
+             SET [title] = ?, [description] = ?, [hero_image_url] = ?, [status] = ?,
+                 [scheduled_for] = ?, [published_at] = ?, [updated_at] = GETUTCDATE()
+             WHERE [id] = ? OR [slug] = ?
+           END
+           ELSE
+           BEGIN
+             INSERT INTO [recipes] ([id], [slug], [title], [description], [hero_image_url], [status], [scheduled_for], [published_at], [prep_time], [cook_time], [servings], [calories], [category], [ingredients], [instructions], [author], [created_at], [updated_at])
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 15, 20, 4, 400, ?, '[]', '[]', ?, GETUTCDATE(), GETUTCDATE())
+           END`,
           [
-            postId,
-            slug,
-            title,
-            subtitle || content || '',
-            hero_image_url || '',
-            status,
-            scheduledDateString,
-            publishedAt,
+            // IF EXISTS
+            postId, slug,
+            // UPDATE
+            title, subtitle || content || '', hero_image_url || '', status, scheduledDateString, publishedAt,
+            postId, slug,
+            // INSERT
+            postId, slug, title, subtitle || content || '', hero_image_url || '', status, scheduledDateString, publishedAt, category || 'Entree', author || 'Chef'
           ]
         );
       } catch (dbErr) {
-        console.warn('MySQL post recipe skipped:', dbErr);
+        console.warn('SQL Server post recipe skipped:', dbErr);
       }
 
       platformStore.saveRecipe({
@@ -102,30 +103,31 @@ export async function POST(req: NextRequest) {
       });
     } else if (type === 'review') {
       try {
-        await queryMySQL(
-          `INSERT INTO \`reviews\` (
-             \`id\`, \`slug\`, \`product_name\`, \`verdict_summary\`, \`hero_image_url\`, \`status\`, \`scheduled_for\`, \`published_at\`
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             \`product_name\` = VALUES(\`product_name\`),
-             \`verdict_summary\` = VALUES(\`verdict_summary\`),
-             \`hero_image_url\` = VALUES(\`hero_image_url\`),
-             \`status\` = VALUES(\`status\`),
-             \`scheduled_for\` = VALUES(\`scheduled_for\`),
-             \`published_at\` = VALUES(\`published_at\`)`,
+        await querySQLServer(
+          `IF EXISTS (SELECT 1 FROM [reviews] WHERE [id] = ? OR [slug] = ?)
+           BEGIN
+             UPDATE [reviews]
+             SET [product_name] = ?, [summary] = ?, [hero_image_url] = ?, [status] = ?,
+                 [scheduled_for] = ?, [published_at] = ?, [updated_at] = GETUTCDATE()
+             WHERE [id] = ? OR [slug] = ?
+           END
+           ELSE
+           BEGIN
+             INSERT INTO [reviews] ([id], [slug], [product_name], [summary], [verdict], [category], [rating], [pros], [cons], [specifications], [hero_image_url], [author], [status], [scheduled_for], [published_at], [created_at], [updated_at])
+             VALUES (?, ?, ?, ?, ?, ?, 4.5, '[]', '[]', '{}', ?, ?, ?, ?, ?, GETUTCDATE(), GETUTCDATE())
+           END`,
           [
-            postId,
-            slug,
-            title,
-            subtitle || content || '',
-            hero_image_url || '',
-            status,
-            scheduledDateString,
-            publishedAt,
+            // IF EXISTS
+            postId, slug,
+            // UPDATE
+            title, subtitle || content || '', hero_image_url || '', status, scheduledDateString, publishedAt,
+            postId, slug,
+            // INSERT
+            postId, slug, title, subtitle || '', content || '', category || 'tech_hardware', hero_image_url || '', author || 'Ultimatum Lab', status, scheduledDateString, publishedAt
           ]
         );
       } catch (dbErr) {
-        console.warn('MySQL post review skipped:', dbErr);
+        console.warn('SQL Server post review skipped:', dbErr);
       }
 
       platformStore.saveReview({
@@ -149,47 +151,33 @@ export async function POST(req: NextRequest) {
     } else {
       // Default: Article (News or Lifestyle)
       try {
-        await queryMySQL(
-          `INSERT INTO \`articles\` (
-             \`id\`, \`slug\`, \`title\`, \`subtitle\`, \`category\`, \`hero_image_url\`, \`gallery_images\`,
-             \`content\`, \`tags\`, \`author\`, \`read_time\`, \`is_breaking\`, \`shoppable_items\`, \`status\`, \`scheduled_for\`, \`published_at\`
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE
-             \`title\` = VALUES(\`title\`),
-             \`subtitle\` = VALUES(\`subtitle\`),
-             \`category\` = VALUES(\`category\`),
-             \`hero_image_url\` = VALUES(\`hero_image_url\`),
-             \`gallery_images\` = VALUES(\`gallery_images\`),
-             \`content\` = VALUES(\`content\`),
-             \`tags\` = VALUES(\`tags\`),
-             \`author\` = VALUES(\`author\`),
-             \`read_time\` = VALUES(\`read_time\`),
-             \`is_breaking\` = VALUES(\`is_breaking\`),
-             \`shoppable_items\` = VALUES(\`shoppable_items\`),
-             \`status\` = VALUES(\`status\`),
-             \`scheduled_for\` = VALUES(\`scheduled_for\`),
-             \`published_at\` = VALUES(\`published_at\`)`,
+        await querySQLServer(
+          `IF EXISTS (SELECT 1 FROM [articles] WHERE [id] = ? OR [slug] = ?)
+           BEGIN
+             UPDATE [articles]
+             SET [slug] = ?, [title] = ?, [subtitle] = ?, [category] = ?, [hero_image_url] = ?,
+                 [gallery_images] = ?, [content] = ?, [tags] = ?, [author] = ?, [read_time] = ?,
+                 [is_breaking] = ?, [shoppable_items] = ?, [status] = ?, [scheduled_for] = ?,
+                 [published_at] = ?, [updated_at] = GETUTCDATE()
+             WHERE [id] = ? OR [slug] = ?
+           END
+           ELSE
+           BEGIN
+             INSERT INTO [articles] ([id], [slug], [title], [subtitle], [category], [hero_image_url], [gallery_images], [content], [tags], [author], [read_time], [is_breaking], [shoppable_items], [status], [scheduled_for], [published_at], [created_at], [updated_at])
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETUTCDATE(), GETUTCDATE())
+           END`,
           [
-            postId,
-            slug,
-            title,
-            subtitle || '',
-            category || 'gaming_news',
-            hero_image_url || '',
-            galleryJson,
-            content || '',
-            tagsJson,
-            author || 'Editorial Staff',
-            read_time || 5,
-            is_breaking ? 1 : 0,
-            shoppableJson,
-            status,
-            scheduledDateString,
-            publishedAt,
+            // IF EXISTS
+            postId, slug,
+            // UPDATE
+            slug, title, subtitle || '', category || 'gaming_news', hero_image_url || '', galleryJson, content || '', tagsJson, author || 'Editorial Staff', read_time || 5, is_breaking ? 1 : 0, shoppableJson, status, scheduledDateString, publishedAt,
+            postId, slug,
+            // INSERT
+            postId, slug, title, subtitle || '', category || 'gaming_news', hero_image_url || '', galleryJson, content || '', tagsJson, author || 'Editorial Staff', read_time || 5, is_breaking ? 1 : 0, shoppableJson, status, scheduledDateString, publishedAt
           ]
         );
       } catch (dbErr) {
-        console.warn('MySQL post article skipped:', dbErr);
+        console.warn('SQL Server post article skipped:', dbErr);
       }
 
       platformStore.saveArticle({
@@ -234,4 +222,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
 

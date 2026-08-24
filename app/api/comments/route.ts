@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 
 export async function GET(req: NextRequest) {
@@ -11,12 +11,12 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get('userId') || searchParams.get('user_id');
 
     if (userId) {
-      const rows = (await queryMySQL(
-        `SELECT c.*, p.username, p.avatar_url 
-         FROM \`user_comments\` c
-         LEFT JOIN \`profiles\` p ON c.user_id = p.id
+      const rows = (await querySQLServer(
+        `SELECT TOP 50 c.*, p.username, p.avatar_url 
+         FROM [user_comments] c
+         LEFT JOIN [profiles] p ON c.user_id = p.id
          WHERE c.user_id = ? AND c.is_flagged = 0
-         ORDER BY c.created_at DESC LIMIT 50`,
+         ORDER BY c.created_at DESC`,
         [userId]
       )) as any[];
       if (rows && rows.length > 0) {
@@ -28,12 +28,12 @@ export async function GET(req: NextRequest) {
 
     if (postId || contentSlug) {
       const idToSearch = postId || contentSlug || '';
-      const rows = (await queryMySQL(
-        `SELECT c.*, p.username, p.avatar_url 
-         FROM \`user_comments\` c
-         LEFT JOIN \`profiles\` p ON c.user_id = p.id
+      const rows = (await querySQLServer(
+        `SELECT TOP 50 c.*, p.username, p.avatar_url 
+         FROM [user_comments] c
+         LEFT JOIN [profiles] p ON c.user_id = p.id
          WHERE (c.content_id = ? OR c.content_slug = ? OR c.content_slug = ?) AND c.is_flagged = 0
-         ORDER BY c.created_at DESC LIMIT 50`,
+         ORDER BY c.created_at DESC`,
         [idToSearch, idToSearch, contentSlug || idToSearch]
       )) as any[];
       if (rows && rows.length > 0) {
@@ -97,15 +97,15 @@ export async function POST(req: NextRequest) {
       avatar_url: avatarUrl,
     });
 
-    // 2. Execute raw MySQL parameterized insert (optional / best-effort)
+    // 2. Execute raw SQL Server parameterized insert (optional / best-effort)
     try {
-      await queryMySQL(
-        `INSERT INTO \`user_comments\` (\`user_id\`, \`content_type\`, \`content_id\`, \`content_slug\`, \`body\`)
+      await querySQLServer(
+        `INSERT INTO [user_comments] ([user_id], [content_type], [content_id], [content_slug], [body])
          VALUES (?, ?, ?, ?, ?)`,
         [userId, contentType, postId, contentSlug, trimmedContent]
       );
-    } catch (mysqlErr) {
-      console.warn('MySQL comment insert skipped:', mysqlErr);
+    } catch (dbErr) {
+      console.warn('SQL Server comment insert skipped:', dbErr);
     }
 
     return NextResponse.json(
@@ -140,8 +140,8 @@ export async function DELETE(req: NextRequest) {
     platformStore.deleteComment(commentId, userId || undefined);
 
     try {
-      await queryMySQL(
-        `DELETE FROM \`user_comments\` WHERE \`id\` = ?`,
+      await querySQLServer(
+        `DELETE FROM [user_comments] WHERE [id] = ?`,
         [commentId]
       );
     } catch {}
@@ -152,4 +152,5 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
+
 

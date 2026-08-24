@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 
 async function publishScheduledPosts() {
@@ -7,7 +7,6 @@ async function publishScheduledPosts() {
 
   try {
     const localPublished = platformStore.autoPublishScheduled();
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     let recipesPublished = 0;
     let reviewsPublished = 0;
@@ -15,46 +14,42 @@ async function publishScheduledPosts() {
 
     try {
       // 1. Update scheduled recipes due for publishing
-      const recipeRes = (await queryMySQL(
-        `UPDATE \`recipes\`
-         SET \`status\` = 'published', \`published_at\` = NOW()
-         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-        [now]
+      const recipeRes = (await querySQLServer(
+        `UPDATE [recipes]
+         SET [status] = 'published', [published_at] = GETUTCDATE()
+         WHERE [status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()`
       )) as any;
 
       // 2. Update scheduled reviews due for publishing
-      const reviewRes = (await queryMySQL(
-        `UPDATE \`reviews\`
-         SET \`status\` = 'published', \`published_at\` = NOW()
-         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-        [now]
+      const reviewRes = (await querySQLServer(
+        `UPDATE [reviews]
+         SET [status] = 'published', [published_at] = GETUTCDATE()
+         WHERE [status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()`
       )) as any;
 
       // 3. Update scheduled articles due for publishing
-      const articleRes = (await queryMySQL(
-        `UPDATE \`articles\`
-         SET \`status\` = 'published', \`published_at\` = NOW()
-         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-        [now]
+      const articleRes = (await querySQLServer(
+        `UPDATE [articles]
+         SET [status] = 'published', [published_at] = GETUTCDATE()
+         WHERE [status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()`
       )) as any;
 
       recipesPublished = recipeRes?.affectedRows ?? 0;
       reviewsPublished = reviewRes?.affectedRows ?? 0;
       articlesPublished = articleRes?.affectedRows ?? 0;
-    } catch (mysqlErr) {
-      console.warn('MySQL cron update skipped:', mysqlErr);
+    } catch (dbErr) {
+      console.warn('SQL Server cron update skipped:', dbErr);
     }
 
     const totalPublished = Math.max(recipesPublished + reviewsPublished + articlesPublished, localPublished);
     const durationMs = Date.now() - start;
 
-
     // 4. Record execution log into scheduler_log table
     try {
-      await queryMySQL(
-        `INSERT INTO \`scheduler_log\` (
-           \`recipes_published\`, \`reviews_published\`, \`articles_published\`, \`total_published\`, \`duration_ms\`, \`notes\`
-         ) VALUES (?, ?, ?, ?, ?, ?)`,
+      await querySQLServer(
+        `INSERT INTO [scheduler_log] (
+           [recipes_published], [reviews_published], [articles_published], [total_published], [duration_ms], [notes], [executed_at]
+         ) VALUES (?, ?, ?, ?, ?, ?, GETUTCDATE())`,
         [
           recipesPublished,
           reviewsPublished,
@@ -90,6 +85,7 @@ async function publishScheduledPosts() {
     );
   }
 }
+
 
 export async function GET() {
   return publishScheduledPosts();

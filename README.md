@@ -1,6 +1,6 @@
 # Ultimatum — Lifestyle, Michelin Kitchen & Retro Arcade Gaming Platform
 
-A modern, high-traffic, monetizable web platform engineered with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **MySQL (HostGator / cPanel / MariaDB)**.
+A modern, high-traffic, monetizable web platform engineered with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **Microsoft SQL Server (MSSQL / Azure SQL)**.
 
 ---
 
@@ -30,7 +30,11 @@ A modern, high-traffic, monetizable web platform engineered with **Next.js (App 
 * **Future Post Scheduling**: Schedule recipes, hardware teardowns, and blogs to auto-publish at future release dates.
 * **Automated Publisher Worker**: Background worker (`/api/scheduler/publish`) and audit logger (`scheduler_log`).
 
-### 5. 🛡️ Super Admin CMS Panel (`/admin`)
+### 5. 💬 Real-Time Comments & Engagement (`/app/api/comments`)
+* Instant optimistic UI rendering with profile badges and avatars.
+* Full persistence to Microsoft SQL Server (`user_comments` table) with resilient in-memory local fallback.
+
+### 6. 🛡️ Super Admin CMS Panel (`/admin`)
 * **Dark-Mode Sidebar Shell**: Analytics overview, content hubs, moderation tables.
 * **Recipe CMS**: Dynamic ingredient row builder (`+ Add Ingredient`) and step editor with release scheduler panel.
 * **Review CMS**: Hardware vs Food selector, pros/cons tag builder, spec key-value matrix.
@@ -40,17 +44,13 @@ A modern, high-traffic, monetizable web platform engineered with **Next.js (App 
 * **Sponsor Setup & Banner Tracking**: Direct ad campaigns with impression and CTR telemetry.
 * **Master Site Settings**: Master ad switches to toggle individual ad zones (header billboard, sidebar, in-content, sticky footer, rewarded video ads) ON or OFF.
 
-### 6. 💰 Monetization & Ad Placement Containers
-* Clear, marked containers (`<AdSlot />`) for easy drop-in of Google AdSense, Ezoic, or Mediavine tags.
-* Full Next/Image WebP image optimization across all hubs.
-
 ---
 
 ## 🛠️ Tech Stack & Architecture
 
 * **Frontend**: Next.js 16 (App Router), React 18, TypeScript, Tailwind CSS, Lucide React, Canvas Confetti.
-* **Backend & Database**: Hosted MySQL (`mysql2/promise`), custom Node.js Socket.io server (`server.js`).
-* **Storage / Fallback**: Canonical MySQL database (`mysql-master-schema.sql` and `sql/add-upgrades.sql`) with in-memory / LocalStorage offline store (`lib/data/store.ts`).
+* **Backend & Database**: Microsoft SQL Server (`mssql` / `tedious`), custom Node.js Socket.io server (`server.js`).
+* **Storage / Fallback**: Canonical SQL Server database (`sqlserver-master-schema.sql`) with in-memory / LocalStorage offline store (`lib/data/store.ts`).
 
 ---
 
@@ -62,14 +62,16 @@ npm install
 ```
 
 ### 2. Configure Database (Optional)
-Run the migration scripts in `mysql-master-schema.sql` and `sql/add-upgrades.sql` inside your phpMyAdmin / MySQL console.
+Run the script in `sqlserver-master-schema.sql` inside your SQL Server Management Studio (SSMS), Azure Data Studio, or sqlcmd.
 Create a `.env.local` file based on `.env.example`:
 ```env
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=your_db_user
-MYSQL_PASSWORD=your_db_password
-MYSQL_DATABASE=your_database_name
+MSSQL_HOST=localhost
+MSSQL_PORT=1433
+MSSQL_USER=sa
+MSSQL_PASSWORD=your_secure_password
+MSSQL_DATABASE=Ultimatum
+MSSQL_ENCRYPT=false
+MSSQL_TRUST_SERVER_CERTIFICATE=true
 SCHEDULER_SECRET=your_scheduler_secret
 ```
 
@@ -77,7 +79,6 @@ SCHEDULER_SECRET=your_scheduler_secret
 ```bash
 node server.js
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### 4. Access Admin CMS

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 
 export async function GET() {
   try {
-    const rows = await queryMySQL(
-      `SELECT * FROM \`scheduler_log\` ORDER BY \`run_at\` DESC LIMIT 50`
+    const rows = await querySQLServer(
+      `SELECT TOP 50 * FROM [scheduler_log] ORDER BY [executed_at] DESC`
     );
     return NextResponse.json({ success: true, data: rows || [] });
   } catch (err: unknown) {
@@ -12,3 +12,4 @@ export async function GET() {
     return NextResponse.json({ success: false, error: e.message, data: [] }, { status: 500 });
   }
 }
+

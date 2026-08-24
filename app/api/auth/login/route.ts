@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 
 function verifyPassword(password: string, storedHash: string): boolean {
@@ -27,15 +27,15 @@ export async function POST(request: Request) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. MySQL database connection (HostGator / phpMyAdmin)
+    // 1. SQL Server database connection
     try {
-      const mysqlRes = await queryMySQL(
-        'SELECT * FROM profiles WHERE email = ? OR username = ? LIMIT 1',
+      const dbRes = await querySQLServer(
+        'SELECT TOP 1 * FROM [profiles] WHERE email = ? OR username = ?',
         [cleanEmail, cleanEmail]
       );
 
-      if (mysqlRes && Array.isArray(mysqlRes) && mysqlRes.length > 0) {
-        const userRow = mysqlRes[0] as any;
+      if (dbRes && Array.isArray(dbRes) && dbRes.length > 0) {
+        const userRow = dbRes[0] as any;
         if (userRow.password_hash) {
           const isValid = verifyPassword(password, userRow.password_hash);
           if (!isValid) {
@@ -49,12 +49,12 @@ export async function POST(request: Request) {
         const user = platformStore.login(cleanEmail, userRow.role);
         return NextResponse.json({
           success: true,
-          message: 'Signed in successfully via MySQL database!',
+          message: 'Signed in successfully via SQL Server database!',
           user: { ...user, ...userRow },
         });
       }
     } catch (dbErr) {
-      console.warn('MySQL login check skipped:', dbErr);
+      console.warn('SQL Server login check skipped:', dbErr);
     }
 
     // 2. Local/Fallback session handler

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 
 export async function POST(request: Request) {
@@ -15,45 +15,41 @@ export async function POST(request: Request) {
 
   try {
     const localPublished = platformStore.autoPublishScheduled();
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     let recipes = 0;
     let reviews = 0;
     let articles = 0;
 
     try {
-      const recipeRes = (await queryMySQL(
-        `UPDATE \`recipes\` SET \`status\` = 'published', \`published_at\` = NOW()
-         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-        [now]
+      const recipeRes = (await querySQLServer(
+        `UPDATE [recipes] SET [status] = 'published', [published_at] = GETUTCDATE()
+         WHERE [status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()`
       )) as any;
 
-      const reviewRes = (await queryMySQL(
-        `UPDATE \`reviews\` SET \`status\` = 'published', \`published_at\` = NOW()
-         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-        [now]
+      const reviewRes = (await querySQLServer(
+        `UPDATE [reviews] SET [status] = 'published', [published_at] = GETUTCDATE()
+         WHERE [status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()`
       )) as any;
 
-      const articleRes = (await queryMySQL(
-        `UPDATE \`articles\` SET \`status\` = 'published', \`published_at\` = NOW()
-         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-        [now]
+      const articleRes = (await querySQLServer(
+        `UPDATE [articles] SET [status] = 'published', [published_at] = GETUTCDATE()
+         WHERE [status] = 'scheduled' AND [scheduled_for] <= GETUTCDATE()`
       )) as any;
 
       recipes = recipeRes?.affectedRows ?? 0;
       reviews = reviewRes?.affectedRows ?? 0;
       articles = articleRes?.affectedRows ?? 0;
-    } catch (mysqlErr) {
-      console.warn('[Scheduler] MySQL update skipped:', mysqlErr);
+    } catch (dbErr) {
+      console.warn('[Scheduler] SQL Server update skipped:', dbErr);
     }
 
     const total = Math.max(recipes + reviews + articles, localPublished);
     const duration = Date.now() - start;
 
     try {
-      await queryMySQL(
-        `INSERT INTO \`scheduler_log\` (\`recipes_published\`, \`reviews_published\`, \`articles_published\`, \`total_published\`, \`duration_ms\`, \`notes\`)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+      await querySQLServer(
+        `INSERT INTO [scheduler_log] ([recipes_published], [reviews_published], [articles_published], [total_published], [duration_ms], [notes], [executed_at])
+         VALUES (?, ?, ?, ?, ?, ?, GETUTCDATE())`,
         [recipes, reviews, articles, total, duration, total > 0 ? `Published ${total} post(s)` : 'No posts due']
       );
     } catch (logErr) {
@@ -71,4 +67,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
+
 

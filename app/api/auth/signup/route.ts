@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 
 function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
@@ -27,22 +27,22 @@ export async function POST(request: Request) {
     const passwordHashWithSalt = `${salt}:${hash}`;
     const role = cleanEmail.includes('admin') ? 'admin' : 'user';
 
-    // 1. MySQL database connection (HostGator / phpMyAdmin / cPanel)
+    // 1. SQL Server database connection
     try {
-      const mysqlRes = await queryMySQL(
-        'SELECT id FROM profiles WHERE email = ? OR username = ? LIMIT 1',
+      const dbRes = await querySQLServer(
+        'SELECT TOP 1 [id] FROM [profiles] WHERE email = ? OR username = ?',
         [cleanEmail, cleanUsername]
       );
-      if (mysqlRes && Array.isArray(mysqlRes) && mysqlRes.length > 0) {
+      if (dbRes && Array.isArray(dbRes) && dbRes.length > 0) {
         return NextResponse.json(
           { success: false, error: 'An account with this email or username already exists' },
           { status: 400 }
         );
       }
 
-      if (mysqlRes) {
-        await queryMySQL(
-          `INSERT INTO profiles (id, email, password_hash, username, avatar_url, role, points, daily_streak, badges) 
+      if (dbRes) {
+        await querySQLServer(
+          `INSERT INTO [profiles] ([id], [email], [password_hash], [username], [avatar_url], [role], [points], [daily_streak], [badges]) 
            VALUES (?, ?, ?, ?, ?, ?, 250, 1, ?)`,
           [
             userId,
@@ -58,12 +58,12 @@ export async function POST(request: Request) {
         const user = platformStore.login(cleanEmail, role as 'admin' | 'user');
         return NextResponse.json({
           success: true,
-          message: 'Account created successfully on MySQL database!',
+          message: 'Account created successfully on SQL Server database!',
           user: { ...user, id: userId, email: cleanEmail, username: cleanUsername },
         });
       }
     } catch (dbErr) {
-      console.warn('MySQL execution skipped or unconfigured:', dbErr);
+      console.warn('SQL Server execution skipped or unconfigured:', dbErr);
     }
 
     // 2. Local/Fallback session handler

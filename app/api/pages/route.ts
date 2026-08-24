@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get('slug');
 
-  // 1. MySQL Database
+  // 1. SQL Server Database
   try {
     if (slug) {
-      const mysqlRes = await queryMySQL('SELECT * FROM pages WHERE slug = ? LIMIT 1', [slug]);
-      if (mysqlRes && Array.isArray(mysqlRes) && mysqlRes.length > 0) {
-        return NextResponse.json({ success: true, data: mysqlRes[0] });
+      const dbRes = await querySQLServer('SELECT TOP 1 * FROM [pages] WHERE [slug] = ?', [slug]);
+      if (dbRes && Array.isArray(dbRes) && dbRes.length > 0) {
+        return NextResponse.json({ success: true, data: dbRes[0] });
       }
     } else {
-      const mysqlRes = await queryMySQL('SELECT * FROM pages ORDER BY created_at DESC');
-      if (mysqlRes && Array.isArray(mysqlRes)) {
-        return NextResponse.json({ success: true, count: mysqlRes.length, data: mysqlRes });
+      const dbRes = await querySQLServer('SELECT * FROM [pages] ORDER BY [created_at] DESC');
+      if (dbRes && Array.isArray(dbRes)) {
+        return NextResponse.json({ success: true, count: dbRes.length, data: dbRes });
       }
     }
   } catch (err) {
-    console.warn('MySQL pages query skipped:', err);
+    console.warn('SQL Server pages query skipped:', err);
   }
 
   // 2. Isomorphic Store Fallback
@@ -36,34 +36,38 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const pageId = body.id || `pg-${Date.now()}`;
 
-    // 1. MySQL Database Save
+    // 1. SQL Server Database Save
     try {
-      await queryMySQL(
-        `INSERT INTO pages (id, slug, title, content, is_published, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE
-           slug = VALUES(slug),
-           title = VALUES(title),
-           content = VALUES(content),
-           is_published = VALUES(is_published),
-           updated_at = NOW()`,
+      await querySQLServer(
+        `IF EXISTS (SELECT 1 FROM [pages] WHERE [id] = ? OR [slug] = ?)
+         BEGIN
+           UPDATE [pages]
+           SET [slug] = ?, [title] = ?, [content] = ?, [updated_at] = GETUTCDATE()
+           WHERE [id] = ? OR [slug] = ?
+         END
+         ELSE
+         BEGIN
+           INSERT INTO [pages] ([id], [slug], [title], [content], [created_at], [updated_at])
+           VALUES (?, ?, ?, ?, GETUTCDATE(), GETUTCDATE())
+         END`,
         [
-          body.id || `pg-${Date.now()}`,
-          body.slug,
-          body.title,
-          body.content,
-          body.is_published ? 1 : 0,
+          pageId, body.slug,
+          body.slug, body.title, body.content,
+          pageId, body.slug,
+          pageId, body.slug, body.title, body.content
         ]
       );
-    } catch (mysqlErr) {
-      console.warn('MySQL page save skipped:', mysqlErr);
+    } catch (dbErr) {
+      console.warn('SQL Server page save skipped:', dbErr);
     }
 
-    const saved = platformStore.savePage(body);
+    const saved = platformStore.savePage({ ...body, id: pageId });
     return NextResponse.json({ success: true, data: saved });
   } catch (err: unknown) {
     const errorObj = err as Error;
     return NextResponse.json({ success: false, error: errorObj.message || 'Failed to save custom page' }, { status: 500 });
   }
 }
+

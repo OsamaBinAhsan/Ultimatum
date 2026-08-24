@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryMySQL } from '@/lib/db/mysql';
+import { querySQLServer } from '@/lib/db/sqlserver';
 
 export async function GET(request: Request) {
   try {
@@ -9,8 +9,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: 'userId required' }, { status: 400 });
     }
 
-    const rows = await queryMySQL(
-      `SELECT * FROM \`saved_recipes\` WHERE \`user_id\` = ? ORDER BY \`saved_at\` DESC`,
+    const rows = await querySQLServer(
+      `SELECT * FROM [saved_recipes] WHERE [user_id] = ? ORDER BY [saved_at] DESC`,
       [userId]
     );
     return NextResponse.json({ success: true, data: rows || [] });
@@ -29,10 +29,13 @@ export async function POST(request: Request) {
       );
     }
 
-    await queryMySQL(
-      `INSERT IGNORE INTO \`saved_recipes\` (\`user_id\`, \`recipe_id\`, \`recipe_slug\`, \`recipe_title\`)
-       VALUES (?, ?, ?, ?)`,
-      [userId, recipe_id, recipe_slug || '', recipe_title || '']
+    await querySQLServer(
+      `IF NOT EXISTS (SELECT 1 FROM [saved_recipes] WHERE [user_id] = ? AND [recipe_id] = ?)
+       BEGIN
+         INSERT INTO [saved_recipes] ([user_id], [recipe_id], [recipe_slug], [recipe_title], [saved_at])
+         VALUES (?, ?, ?, ?, GETUTCDATE())
+       END`,
+      [userId, recipe_id, userId, recipe_id, recipe_slug || '', recipe_title || '']
     );
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
@@ -52,8 +55,8 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await queryMySQL(
-      `DELETE FROM \`saved_recipes\` WHERE \`user_id\` = ? AND \`recipe_id\` = ?`,
+    await querySQLServer(
+      `DELETE FROM [saved_recipes] WHERE [user_id] = ? AND [recipe_id] = ?`,
       [userId, recipeId]
     );
     return NextResponse.json({ success: true });
@@ -61,3 +64,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: false, error: (err as Error).message }, { status: 500 });
   }
 }
+
