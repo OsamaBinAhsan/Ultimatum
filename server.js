@@ -220,9 +220,14 @@ function generateRoomCode() {
 // Server Initialization & 20 Ticks/Sec Engine Loop
 // ---------------------------------------------------------------------------
 app.prepare().then(() => {
-  const server = createServer((req, res) => {
-    const parsedUrl = parse(req.url, true);
-    handle(req, res, parsedUrl);
+  const server = createServer(async (req, res) => {
+    try {
+      await handle(req, res);
+    } catch (err) {
+      console.error('Error handling request:', req.url, err);
+      res.statusCode = 500;
+      res.end('Internal Server Error');
+    }
   });
 
   const io = new Server(server, {
