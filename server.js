@@ -201,18 +201,112 @@ class KitchenRoom {
 }
 
 // ---------------------------------------------------------------------------
-// Server Authority & Room Manager
+// Sabotage Circuit Room Manager (5-Player Deception Game)
+// ---------------------------------------------------------------------------
+class SabotageRoom {
+  constructor(code, hostId, hostName) {
+    this.code = code;
+    this.hostId = hostId;
+    this.createdAt = Date.now();
+    this.lastActivity = Date.now();
+    this.status = 'LOBBY';
+    this.players = new Map();
+    this.addPlayer(hostId, hostName || 'CHIEF-ENG', true);
+  }
+
+  addPlayer(id, name, isHost = false) {
+    this.players.set(id, {
+      id,
+      name: name || `OPERATOR-${this.players.size + 1}`,
+      isHost,
+      role: 'ENGINEER',
+      splitPart: null,
+    });
+    this.lastActivity = Date.now();
+  }
+
+  removePlayer(id) {
+    this.players.delete(id);
+    if (id === this.hostId && this.players.size > 0) {
+      const nextHost = this.players.keys().next().value;
+      this.hostId = nextHost;
+      const player = this.players.get(nextHost);
+      if (player) player.isHost = true;
+    }
+    this.lastActivity = Date.now();
+  }
+
+  getRoster() {
+    return Array.from(this.players.values());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The Architect & The Rats Room Manager (1v4 Asymmetrical Maze Arena)
+// ---------------------------------------------------------------------------
+class ArchiratRoom {
+  constructor(code, hostId, hostName) {
+    this.code = code;
+    this.hostId = hostId;
+    this.createdAt = Date.now();
+    this.lastActivity = Date.now();
+    this.phase = 'LOBBY';
+    this.players = new Map();
+    this.grid = null;
+    this.trueExit = { x: 18, y: 18 };
+    this.startTile = { x: 1, y: 1 };
+    this.addPlayer(hostId, hostName || 'Architect (Host)', 'Architect', true);
+  }
+
+  addPlayer(id, name, role = 'Rat', isHost = false) {
+    const RAT_COLORS = ['#fbbf24', '#34d399', '#60a5fa', '#f472b6'];
+    const assignedColor = role === 'Architect' ? '#e94560' : RAT_COLORS[(this.players.size - 1) % RAT_COLORS.length] || '#fbbf24';
+    this.players.set(id, {
+      id,
+      name: name || (role === 'Architect' ? 'Architect' : `Rat ${this.players.size}`),
+      role,
+      color: assignedColor,
+      wins: 0,
+      isHost,
+    });
+    this.lastActivity = Date.now();
+  }
+
+  removePlayer(id) {
+    this.players.delete(id);
+    if (id === this.hostId && this.players.size > 0) {
+      const nextHost = this.players.keys().next().value;
+      this.hostId = nextHost;
+      const player = this.players.get(nextHost);
+      if (player) {
+        player.isHost = true;
+        player.role = 'Architect';
+        player.color = '#e94560';
+      }
+    }
+    this.lastActivity = Date.now();
+  }
+
+  getRoster() {
+    return Array.from(this.players.values());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Server Authority & Room Managers
 // ---------------------------------------------------------------------------
 const rooms = new Map(); // RoomCode -> KitchenRoom
-const playerRoomMap = new Map(); // SocketID -> RoomCode
+const sabotageRooms = new Map(); // RoomCode -> SabotageRoom
+const archiratRooms = new Map(); // RoomCode -> ArchiratRoom
+const playerRoomMap = new Map(); // SocketID -> { code, gameType: 'kitchen' | 'sabotage' | 'archirat' }
 
-function generateRoomCode() {
+function generateRoomCode(targetMap = rooms) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 4; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return rooms.has(code) ? generateRoomCode() : code;
+  return targetMap.has(code) ? generateRoomCode(targetMap) : code;
 }
 
 // ---------------------------------------------------------------------------
@@ -481,18 +575,264 @@ app.prepare().then(() => {
       }
     });
 
-    // 7. Disconnect Handler
-    socket.on('disconnect', () => {
-      const roomCode = playerRoomMap.get(socket.id);
-      if (roomCode) {
-        const room = rooms.get(roomCode);
-        if (room) {
-          room.removePlayer(socket.id);
-          io.to(roomCode).emit('player_left', {
-            playerId: socket.id,
-            state: room.getCompressedState(),
+    // -------------------------------------------------------------------------
+    // SABOTAGE CIRCUIT MULTIPLAYER EVENTS
+    // -------------------------------------------------------------------------
+
+    // 1. Host Sabotage Room
+    socket.on('sabotage_create_room', ({ playerName }) => {
+      const roomCode = generateRoomCode(sabotageRooms);
+      const room = new SabotageRoom(roomCode, socket.id, playerName);
+      sabotageRooms.set(roomCode, room);
+      playerRoomMap.set(socket.id, { code: roomCode, gameType: 'sabotage' });
+
+      socket.join(roomCode);
+      socket.emit('sabotage_room_created', {
+        roomCode,
+        playerId: socket.id,
+        players: room.getRoster(),
+      });
+    });
+
+    // 2. Join Sabotage Room
+    socket.on('sabotage_join_room', ({ roomCode, playerName }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = sabotageRooms.get(upperCode);
+
+      if (!room) {
+        socket.emit('sabotage_join_error', { message: `Room '${upperCode}' not found.` });
+        return;
+      }
+
+      if (room.players.size >= 5) {
+        socket.emit('sabotage_join_error', { message: `Room '${upperCode}' is full (Max 5 Operators).` });
+        return;
+      }
+
+      room.addPlayer(socket.id, playerName);
+      playerRoomMap.set(socket.id, { code: upperCode, gameType: 'sabotage' });
+
+      socket.join(upperCode);
+      socket.emit('sabotage_room_joined', {
+        roomCode: upperCode,
+        playerId: socket.id,
+        players: room.getRoster(),
+      });
+
+      io.to(upperCode).emit('sabotage_roster', {
+        players: room.getRoster(),
+      });
+    });
+
+    // 3. Start Sabotage Game
+    socket.on('sabotage_start_game', ({ roomCode, players, initState }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = sabotageRooms.get(upperCode);
+      if (!room || room.hostId !== socket.id) return;
+
+      room.status = 'PLAYING';
+      io.to(upperCode).emit('sabotage_game_start', {
+        players,
+        initState,
+      });
+    });
+
+    // 4. Sabotage Client Intent (from player to host)
+    socket.on('sabotage_client_intent', ({ roomCode, intent }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = sabotageRooms.get(upperCode);
+      if (!room) return;
+
+      // Forward to room host
+      io.to(room.hostId).emit('sabotage_host_process_intent', {
+        senderId: socket.id,
+        intent,
+      });
+    });
+
+    // 5. Sabotage State Sync (from host to all room players)
+    socket.on('sabotage_state_sync', ({ roomCode, state }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      socket.to(upperCode).emit('sabotage_state_update', { state });
+    });
+
+    // 6. Sabotage Match Over
+    socket.on('sabotage_match_over', ({ roomCode, payload }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = sabotageRooms.get(upperCode);
+      if (room) room.status = 'GAMEOVER';
+      io.to(upperCode).emit('sabotage_game_over', payload);
+    });
+
+    // -------------------------------------------------------------------------
+    // THE ARCHITECT & THE RATS MULTIPLAYER EVENTS
+    // -------------------------------------------------------------------------
+
+    // 1. Host Maze Arena
+    socket.on('archirat_create_room', ({ playerName }) => {
+      const roomCode = generateRoomCode(archiratRooms);
+      const room = new ArchiratRoom(roomCode, socket.id, playerName);
+      archiratRooms.set(roomCode, room);
+      playerRoomMap.set(socket.id, { code: roomCode, gameType: 'archirat' });
+
+      socket.join(roomCode);
+      socket.emit('archirat_room_created', {
+        roomCode,
+        playerId: socket.id,
+        players: room.getRoster(),
+      });
+    });
+
+    // 2. Join Maze Arena
+    socket.on('archirat_join_room', ({ roomCode, playerName }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = archiratRooms.get(upperCode);
+
+      if (!room) {
+        socket.emit('archirat_join_error', { message: `Room '${upperCode}' not found.` });
+        return;
+      }
+
+      if (room.players.size >= 5) {
+        socket.emit('archirat_join_error', { message: `Room '${upperCode}' is full (Max 5 Players).` });
+        return;
+      }
+
+      room.addPlayer(socket.id, playerName, 'Rat');
+      playerRoomMap.set(socket.id, { code: upperCode, gameType: 'archirat' });
+
+      socket.join(upperCode);
+      socket.emit('archirat_room_joined', {
+        roomCode: upperCode,
+        playerId: socket.id,
+        players: room.getRoster(),
+      });
+
+      io.to(upperCode).emit('archirat_roster', {
+        players: room.getRoster(),
+      });
+    });
+
+    // 3. Start Architect Phase
+    socket.on('archirat_start_architect', ({ roomCode }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = archiratRooms.get(upperCode);
+      if (!room || room.hostId !== socket.id) return;
+
+      room.phase = 'ARCHITECT';
+      io.to(upperCode).emit('archirat_phase_architect', {
+        timer: 20,
+        players: room.getRoster(),
+      });
+    });
+
+    // 4. Architect Finished Maze -> Start Rat Phase
+    socket.on('archirat_maze_ready', ({ roomCode, grid, trueExit, startTile }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = archiratRooms.get(upperCode);
+      if (!room) return;
+
+      room.phase = 'RAT';
+      room.grid = grid;
+      room.trueExit = trueExit;
+      room.startTile = startTile;
+
+      io.to(upperCode).emit('archirat_phase_rat', {
+        grid,
+        trueExit,
+        startTile,
+        matchTime: 45,
+      });
+    });
+
+    // 5. Rat Movement Synchronization
+    socket.on('archirat_rat_move', ({ roomCode, ratState }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      socket.to(upperCode).emit('archirat_remote_rat_move', {
+        ratState: { ...ratState, id: socket.id },
+      });
+    });
+
+    // 6. Trap Detonations
+    socket.on('archirat_trigger_trap', ({ roomCode, trapData }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      io.to(upperCode).emit('archirat_trap_detonated', trapData);
+    });
+
+    // 7. Abilities (Lights Out, Sonar, Emotes)
+    socket.on('archirat_ability', ({ roomCode, ability, payload }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      io.to(upperCode).emit('archirat_ability_triggered', {
+        senderId: socket.id,
+        ability,
+        payload,
+      });
+    });
+
+    // 8. Round Over & Role Rotation
+    socket.on('archirat_round_over', ({ roomCode, winnerRole, winnerName, nextArchitectId }) => {
+      const upperCode = (roomCode || '').toUpperCase().trim();
+      const room = archiratRooms.get(upperCode);
+      if (room) {
+        room.phase = 'ROUNDOVER';
+        if (winnerRole === 'Rat' && nextArchitectId) {
+          room.players.forEach((p) => {
+            if (p.id === nextArchitectId) {
+              p.role = 'Architect';
+              p.color = '#e94560';
+              p.isHost = true;
+              room.hostId = nextArchitectId;
+            } else {
+              p.role = 'Rat';
+              p.isHost = false;
+            }
           });
         }
+      }
+
+      io.to(upperCode).emit('archirat_round_ended', {
+        winnerRole,
+        winnerName,
+        players: room ? room.getRoster() : [],
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Universal Disconnect Handler
+    // -------------------------------------------------------------------------
+    socket.on('disconnect', () => {
+      const mapping = playerRoomMap.get(socket.id);
+      if (mapping) {
+        const { code, gameType } = typeof mapping === 'object' ? mapping : { code: mapping, gameType: 'kitchen' };
+
+        if (gameType === 'kitchen') {
+          const room = rooms.get(code);
+          if (room) {
+            room.removePlayer(socket.id);
+            io.to(code).emit('player_left', {
+              playerId: socket.id,
+              state: room.getCompressedState(),
+            });
+          }
+        } else if (gameType === 'sabotage') {
+          const room = sabotageRooms.get(code);
+          if (room) {
+            room.removePlayer(socket.id);
+            io.to(code).emit('sabotage_roster', {
+              players: room.getRoster(),
+            });
+          }
+        } else if (gameType === 'archirat') {
+          const room = archiratRooms.get(code);
+          if (room) {
+            room.removePlayer(socket.id);
+            io.to(code).emit('archirat_player_left', {
+              playerId: socket.id,
+              players: room.getRoster(),
+            });
+          }
+        }
+
         playerRoomMap.delete(socket.id);
       }
     });

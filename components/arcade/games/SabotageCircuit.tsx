@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { io, Socket } from 'socket.io-client';
 import {
   Volume2,
   VolumeX,
@@ -264,6 +265,7 @@ export function SabotageCircuitEngine({
   const [scoreEarned, setScoreEarned] = useState(0);
 
   // Network references
+  const socketRef = useRef<Socket | null>(null);
   const localChannelRef = useRef<BroadcastChannel | null>(null);
   const masterTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stateRef = useRef<CircuitGameState>(gameState);
@@ -276,6 +278,21 @@ export function SabotageCircuitEngine({
   myIdRef.current = myId;
   const myNameRef = useRef(myName);
   myNameRef.current = myName;
+  const roomCodeRef = useRef(roomCode);
+  roomCodeRef.current = roomCode;
+
+  // Socket cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      if (localChannelRef.current) {
+        localChannelRef.current.close();
+      }
+    };
+  }, []);
 
   // -------------------------------------------------------------------------
   // Sound toggle
@@ -371,7 +388,28 @@ export function SabotageCircuitEngine({
   // -------------------------------------------------------------------------
   // Broadcast & Intent Dispatch
   // -------------------------------------------------------------------------
-  const broadcastMsg = useCallback((msg: unknown) => {
+  const broadcastMsg = useCallback((msg: any) => {
+    if (socketRef.current && socketRef.current.connected) {
+      try {
+        if (msg.type === 'STATE_SYNC') {
+          socketRef.current.emit('sabotage_state_sync', {
+            roomCode: roomCodeRef.current,
+            state: msg.payload?.state || msg.state || stateRef.current,
+          });
+        } else if (msg.type === 'START') {
+          socketRef.current.emit('sabotage_start_game', {
+            roomCode: roomCodeRef.current,
+            players: msg.payload?.players || playersRef.current,
+            initState: msg.payload?.initState || stateRef.current,
+          });
+        } else if (msg.type === 'MATCH_OVER') {
+          socketRef.current.emit('sabotage_match_over', {
+            roomCode: roomCodeRef.current,
+            payload: msg.payload,
+          });
+        }
+      } catch {}
+    }
     if (localChannelRef.current) {
       try {
         localChannelRef.current.postMessage({ fromLocal: true, senderId: myIdRef.current, msg });
@@ -380,6 +418,14 @@ export function SabotageCircuitEngine({
   }, []);
 
   const sendIntentToHost = useCallback((intent: unknown) => {
+    if (socketRef.current && socketRef.current.connected) {
+      try {
+        socketRef.current.emit('sabotage_client_intent', {
+          roomCode: roomCodeRef.current,
+          intent,
+        });
+      } catch {}
+    }
     if (localChannelRef.current) {
       try {
         localChannelRef.current.postMessage({
@@ -728,8 +774,73 @@ export function SabotageCircuitEngine({
   );
 
   // -------------------------------------------------------------------------
-  // Connect to BroadcastChannel on Room Setup
+  // Connect to Socket.IO & BroadcastChannel on Room Setup
   // -------------------------------------------------------------------------
+  const initSocket = useCallback(() => {
+    if (socketRef.current) return socketRef.current;
+
+    const socket = io({
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('sabotage_room_created', ({ roomCode: code, playerId, players: roster }) => {
+      setRoomCode(code);
+      setMyId(playerId);
+      setPlayers(roster || []);
+      setupLocalChannel(code);
+    });
+
+    socket.on('sabotage_room_joined', ({ roomCode: code, playerId, players: roster }) => {
+      setRoomCode(code);
+      setMyId(playerId);
+      setPlayers(roster || []);
+      setupLocalChannel(code);
+    });
+
+    socket.on('sabotage_roster', ({ players: roster }) => {
+      setPlayers(roster || []);
+    });
+
+    socket.on('sabotage_host_process_intent', ({ senderId, intent }) => {
+      if (isHostRef.current) {
+        processHostIntent(senderId, intent);
+      }
+    });
+
+    socket.on('sabotage_game_start', ({ players: roster, initState }) => {
+      setPlayers(roster || []);
+      const me = (roster || []).find((p: Operator) => p.id === (socketRef.current?.id || myIdRef.current));
+      if (me) {
+        setMyRole(me.role);
+        setMySplitPart(me.splitPart);
+      }
+      setGameState(initState);
+      setRoleModalVisible(true);
+    });
+
+    socket.on('sabotage_state_update', ({ state }) => {
+      if (!isHostRef.current) {
+        setGameState(state);
+      }
+    });
+
+    socket.on('sabotage_game_over', (payload) => {
+      if (!isHostRef.current) {
+        setGameState(payload.state);
+        setWinner(payload.winner);
+        setSaboteurNames(payload.saboteurs || []);
+        setScoreEarned(payload.calculatedScore || 0);
+      }
+    });
+
+    socket.on('sabotage_join_error', ({ message }) => {
+      alert(message || 'Failed to join room.');
+    });
+
+    socketRef.current = socket;
+    return socket;
+  }, [processHostIntent]);
+
   const setupLocalChannel = useCallback(
     (code: string) => {
       if (typeof window === 'undefined' || !window.BroadcastChannel) return;
@@ -833,20 +944,21 @@ export function SabotageCircuitEngine({
 
   const handleHostInit = () => {
     sfx.playClick();
-    const code = genCode(4);
-    const hostId = `HOST_${code}`;
     const name = myName.trim().toUpperCase() || 'HOST-1';
-
     setIsHost(true);
-    setRoomCode(code);
-    setMyId(hostId);
     setMyName(name);
 
-    const initialPlayers: Operator[] = [
-      { id: hostId, name, isHost: true, role: 'ENGINEER', splitPart: null },
-    ];
-    setPlayers(initialPlayers);
-    setupLocalChannel(code);
+    const socket = initSocket();
+    if (socket) {
+      socket.emit('sabotage_create_room', { playerName: name });
+    } else {
+      const code = genCode(4);
+      const hostId = `HOST_${code}`;
+      setRoomCode(code);
+      setMyId(hostId);
+      setPlayers([{ id: hostId, name, isHost: true, role: 'ENGINEER', splitPart: null }]);
+      setupLocalChannel(code);
+    }
   };
 
   const handleJoinCircuit = () => {
@@ -855,24 +967,27 @@ export function SabotageCircuitEngine({
     const name = joinInputName.trim().toUpperCase() || 'OPERATOR-2';
     if (!code) return;
 
-    const joinerId = `JOIN_${Math.random().toString(36).substring(2, 7)}`;
     setIsHost(false);
-    setRoomCode(code);
-    setMyId(joinerId);
     setMyName(name);
 
-    setupLocalChannel(code);
-
-    // Send JOIN_REQ
-    setTimeout(() => {
-      if (localChannelRef.current) {
-        localChannelRef.current.postMessage({
-          fromLocal: true,
-          senderId: joinerId,
-          clientMsg: { type: 'JOIN_REQ', payload: { id: joinerId, name } },
-        });
-      }
-    }, 150);
+    const socket = initSocket();
+    if (socket) {
+      socket.emit('sabotage_join_room', { roomCode: code, playerName: name });
+    } else {
+      const joinerId = `JOIN_${Math.random().toString(36).substring(2, 7)}`;
+      setRoomCode(code);
+      setMyId(joinerId);
+      setupLocalChannel(code);
+      setTimeout(() => {
+        if (localChannelRef.current) {
+          localChannelRef.current.postMessage({
+            fromLocal: true,
+            senderId: joinerId,
+            clientMsg: { type: 'JOIN_REQ', payload: { id: joinerId, name } },
+          });
+        }
+      }, 150);
+    }
   };
 
   const handleStartMission = () => {
@@ -897,7 +1012,7 @@ export function SabotageCircuitEngine({
     };
 
     setPlayers(shuffled);
-    const me = shuffled.find((p) => p.id === myId);
+    const me = shuffled.find((p) => p.id === (socketRef.current?.id || myId));
     if (me) {
       setMyRole(me.role);
       setMySplitPart(me.splitPart);

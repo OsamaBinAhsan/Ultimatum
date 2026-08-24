@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { io, Socket } from 'socket.io-client';
 import {
   Volume2,
   VolumeX,
@@ -12,6 +13,9 @@ import {
   Info,
   Eye,
   HelpCircle,
+  Copy,
+  Users,
+  LogIn,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
@@ -41,6 +45,25 @@ class RatMazeAudioSynth {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+  }
+
+  playClick() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.04);
+      gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.04);
+    } catch {}
   }
 
   playWallBuild() {
@@ -363,6 +386,20 @@ export function TheArchitectAndTheRatsEngine({
     winnerName: string;
   } | null>(null);
 
+  // Online Multiplayer State
+  const [roomCode, setRoomCode] = useState('');
+  const [joinInputCode, setJoinInputCode] = useState('');
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const socketRef = useRef<Socket | null>(null);
+  const roomCodeRef = useRef<string>('');
+  roomCodeRef.current = roomCode;
+  const playModeRef = useRef<'solo' | 'multi'>(playMode);
+  playModeRef.current = playMode;
+  const myRoleRef = useRef<PlayerRole>(myRole);
+  myRoleRef.current = myRole;
+
   const gridRef = useRef<number[][]>(
     Array(GRID_SIZE)
       .fill(null)
@@ -402,6 +439,22 @@ export function TheArchitectAndTheRatsEngine({
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up socket and channel on unmount
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.close();
+      }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, []);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -601,6 +654,16 @@ export function TheArchitectAndTheRatsEngine({
     setMatchTimer(TIME_RAT_PHASE);
     sfx.playWallBuild();
 
+    // Broadcast maze layout to online room
+    if (playModeRef.current === 'multi' && myRoleRef.current === 'Architect' && socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('archirat_maze_ready', {
+        roomCode: roomCodeRef.current,
+        grid: gridRef.current,
+        trueExit: trueExitTile.current,
+        startTile: startTile.current,
+      });
+    }
+
     timerIntervalRef.current = setInterval(() => {
       setMatchTimer((prev) => {
         if (prev <= 1) {
@@ -655,6 +718,15 @@ export function TheArchitectAndTheRatsEngine({
         platformStore.submitScore(gameId, earned);
         if (onScoreSubmitted) onScoreSubmitted(earned);
       } catch {}
+
+      if (playModeRef.current === 'multi' && socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('archirat_round_over', {
+          roomCode: roomCodeRef.current,
+          winnerRole,
+          winnerName,
+          nextArchitectId: winnerRole === 'Rat' ? winnerId : null,
+        });
+      }
 
       setTimeout(() => {
         startArchitectPhase();
@@ -742,18 +814,149 @@ export function TheArchitectAndTheRatsEngine({
         else sfx.playTrapPlace();
       } else if (phase === 'RAT' && myRole === 'Architect') {
         if (gridRef.current[gy][gx] === CELL_TRIGGER) {
-          activeDetonationsRef.current.push({
+          const trapData = {
             x: gx,
             y: gy,
             timeRemaining: TRIGGER_DETONATION_TIME,
-          });
+          };
+          activeDetonationsRef.current.push(trapData);
           gridRef.current[gy][gx] = CELL_EMPTY;
           sfx.playDetonation();
+
+          if (playModeRef.current === 'multi' && socketRef.current && socketRef.current.connected) {
+            socketRef.current.emit('archirat_trigger_trap', {
+              roomCode: roomCodeRef.current,
+              trapData,
+            });
+          }
         }
       }
     },
     [phase, myRole, selectedTool, budget]
   );
+
+  // -------------------------------------------------------------------------
+  // Connect to Socket.IO & BroadcastChannel on Room Setup
+  // -------------------------------------------------------------------------
+  const initSocket = useCallback(() => {
+    if (socketRef.current) return socketRef.current;
+
+    const socket = io({
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('archirat_room_created', ({ roomCode: code, playerId, players: roster }) => {
+      setPlayMode('multi');
+      setRoomCode(code);
+      roomCodeRef.current = code;
+      setMyPeerId(playerId);
+      setMyRole('Architect');
+      setArchitectIds([playerId]);
+      setPlayers(roster || []);
+      setupLocalChannel(code);
+      setTimeout(() => {
+        startArchitectPhase();
+      }, 200);
+    });
+
+    socket.on('archirat_room_joined', ({ roomCode: code, playerId, players: roster }) => {
+      setPlayMode('multi');
+      setRoomCode(code);
+      roomCodeRef.current = code;
+      setMyPeerId(playerId);
+      setMyRole('Rat');
+      const arch = (roster || []).find((p: PlayerInfo) => p.role === 'Architect');
+      setArchitectIds(arch ? [arch.id] : []);
+      setPlayers(roster || []);
+      setupLocalChannel(code);
+    });
+
+    socket.on('archirat_roster', ({ players: roster }) => {
+      setPlayers(roster || []);
+      const arch = (roster || []).find((p: PlayerInfo) => p.role === 'Architect');
+      if (arch) setArchitectIds([arch.id]);
+    });
+
+    socket.on('archirat_phase_architect', ({ timer, players: roster }) => {
+      if (roster) setPlayers(roster);
+      startArchitectPhase();
+    });
+
+    socket.on('archirat_phase_rat', ({ grid, trueExit, startTile: stTile }) => {
+      gridRef.current = grid;
+      trueExitTile.current = trueExit;
+      if (stTile) startTile.current = stTile;
+      startRatPhase();
+    });
+
+    socket.on('archirat_remote_rat_move', ({ ratState }) => {
+      if (ratState && ratState.id && ratState.id !== (socketRef.current?.id || myPeerId)) {
+        remoteRatsRef.current[ratState.id] = {
+          id: ratState.id,
+          x: ratState.x,
+          y: ratState.y,
+          angle: ratState.angle,
+          color: ratState.color || '#fbbf24',
+          isDead: ratState.isDead,
+          sonarActive: ratState.sonarActive,
+        };
+      }
+    });
+
+    socket.on('archirat_trap_detonated', (trapData) => {
+      activeDetonationsRef.current.push(trapData);
+      sfx.playDetonation();
+    });
+
+    socket.on('archirat_ability_triggered', ({ senderId, ability, payload }) => {
+      if (ability === 'lights_out') {
+        lightsOutUsedThisRoundRef.current = true;
+        lightsOutTimerRef.current = LIGHTS_OUT_DURATION;
+        sfx.playLightsOut();
+      } else if (ability === 'sonar') {
+        if (remoteRatsRef.current[senderId]) {
+          remoteRatsRef.current[senderId].sonarActive = true;
+        }
+        sfx.playSonar();
+      } else if (ability === 'emote') {
+        floatingEmotesRef.current.push({
+          text: payload.emote,
+          x: payload.x || 400,
+          y: payload.y || 400,
+          life: 2.0,
+          maxLife: 2.0,
+        });
+        sfx.playEmote();
+      }
+    });
+
+    socket.on('archirat_round_ended', ({ winnerRole, winnerName, players: roster }) => {
+      if (roster) setPlayers(roster);
+      setRoundOverData({ winnerRole, winnerName });
+      setPhase('ROUNDOVER');
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      setTimeout(() => {
+        startArchitectPhase();
+      }, 3500);
+    });
+
+    socket.on('archirat_player_left', ({ players: roster }) => {
+      if (roster) setPlayers(roster);
+    });
+
+    socket.on('archirat_join_error', ({ message }) => {
+      alert(message || 'Failed to join maze room.');
+    });
+
+    socketRef.current = socket;
+    return socket;
+  }, [startArchitectPhase, startRatPhase, myPeerId]);
+
+  const setupLocalChannel = useCallback((code: string) => {
+    if (typeof window === 'undefined' || !window.BroadcastChannel) return;
+    if (broadcastChannelRef.current) broadcastChannelRef.current.close();
+    broadcastChannelRef.current = new BroadcastChannel(`archirat_${code}`);
+  }, []);
 
   const triggerSonarAbility = useCallback(() => {
     if (myRole !== 'Rat' || phase !== 'RAT' || localRatRef.current.isDead || localRatRef.current.sonarActive)
@@ -762,14 +965,30 @@ export function TheArchitectAndTheRatsEngine({
     localRatRef.current.sonarTimer = SONAR_DURATION;
     setMatchTimer((prev) => Math.max(1, prev - SONAR_TIME_PENALTY));
     sfx.playSonar();
-  }, [myRole, phase]);
+
+    if (playMode === 'multi' && socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('archirat_ability', {
+        roomCode: roomCodeRef.current,
+        ability: 'sonar',
+        payload: {},
+      });
+    }
+  }, [myRole, phase, playMode]);
 
   const triggerLightsOutAbility = useCallback(() => {
     if (myRole !== 'Architect' || phase !== 'RAT' || lightsOutUsedThisRoundRef.current) return;
     lightsOutUsedThisRoundRef.current = true;
     lightsOutTimerRef.current = LIGHTS_OUT_DURATION;
     sfx.playLightsOut();
-  }, [myRole, phase]);
+
+    if (playMode === 'multi' && socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('archirat_ability', {
+        roomCode: roomCodeRef.current,
+        ability: 'lights_out',
+        payload: {},
+      });
+    }
+  }, [myRole, phase, playMode]);
 
   const sendTrashTalkEmote = useCallback((emote: string) => {
     let spawnX = 400;
@@ -786,6 +1005,14 @@ export function TheArchitectAndTheRatsEngine({
       maxLife: 2.0,
     });
     sfx.playEmote();
+
+    if (playModeRef.current === 'multi' && socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('archirat_ability', {
+        roomCode: roomCodeRef.current,
+        ability: 'emote',
+        payload: { emote, x: spawnX, y: spawnY },
+      });
+    }
   }, []);
 
   const startSoloMatch = (role: PlayerRole) => {
@@ -818,23 +1045,55 @@ export function TheArchitectAndTheRatsEngine({
   };
 
   const createLobbyRoom = () => {
-    const code = Math.random().toString(36).substring(2, 7).toUpperCase();
-    setPlayMode('multi');
-    setMyRole('Architect');
-    setArchitectIds(['p1-local']);
-    setPlayers([
-      { id: 'p1-local', name: 'Host (You)', role: 'Architect', color: ARCHITECT_COLORS[0], wins: 0 },
-      { id: 'p2-guest', name: 'Player 2 (Waiting...)', role: 'Rat', color: RAT_COLORS[0], wins: 0 },
-    ]);
-
-    if (typeof window !== 'undefined' && window.BroadcastChannel) {
-      if (broadcastChannelRef.current) broadcastChannelRef.current.close();
-      broadcastChannelRef.current = new BroadcastChannel(`archirat_${code}`);
+    sfx.playClick();
+    const socket = initSocket();
+    if (socket) {
+      socket.emit('archirat_create_room', { playerName: 'Architect (Host)' });
+    } else {
+      const code = Math.random().toString(36).substring(2, 7).toUpperCase();
+      setPlayMode('multi');
+      setRoomCode(code);
+      roomCodeRef.current = code;
+      setMyRole('Architect');
+      setArchitectIds(['p1-local']);
+      setPlayers([
+        { id: 'p1-local', name: 'Host (You)', role: 'Architect', color: ARCHITECT_COLORS[0], wins: 0 },
+        { id: 'p2-guest', name: 'Player 2 (Waiting...)', role: 'Rat', color: RAT_COLORS[0], wins: 0 },
+      ]);
+      setupLocalChannel(code);
+      setTimeout(() => {
+        startArchitectPhase();
+      }, 200);
     }
+  };
 
-    setTimeout(() => {
-      startArchitectPhase();
-    }, 200);
+  const joinLobbyRoom = (codeToJoin: string) => {
+    sfx.playClick();
+    const code = codeToJoin.trim().toUpperCase();
+    if (!code) return;
+    const socket = initSocket();
+    if (socket) {
+      socket.emit('archirat_join_room', { roomCode: code, playerName: 'Rat Guest' });
+      setJoinModalOpen(false);
+    } else {
+      setPlayMode('multi');
+      setRoomCode(code);
+      roomCodeRef.current = code;
+      setMyRole('Rat');
+      setupLocalChannel(code);
+      setJoinModalOpen(false);
+      setTimeout(() => {
+        startArchitectPhase();
+      }, 200);
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(roomCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
   };
 
   useEffect(() => {
@@ -1311,6 +1570,21 @@ export function TheArchitectAndTheRatsEngine({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {roomCode && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-pink-500/50 bg-pink-500/10 px-2.5 py-1 text-xs font-mono text-pink-300">
+              <span className="text-zinc-400">ROOM:</span>
+              <span className="font-bold tracking-wider text-white">{roomCode}</span>
+              <button
+                onClick={handleCopyLink}
+                className="ml-1 p-1 hover:text-white transition-colors"
+                title="Copy Room Code"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+              {copiedCode && <span className="text-[10px] text-emerald-400 font-bold">COPIED</span>}
+            </div>
+          )}
+
           <div className="hidden sm:flex items-center gap-2 rounded-lg border border-zinc-800 bg-black/60 px-3 py-1 text-xs font-mono">
             <Trophy className="h-3.5 w-3.5 text-amber-400" />
             <span className="text-zinc-400 uppercase font-bold">WINS:</span>
@@ -1551,15 +1825,16 @@ export function TheArchitectAndTheRatsEngine({
                 Architects construct deadly mazes with spikes and trigger traps. Rats race in fog of war to find the True Gold Exit and steal the throne!
               </p>
 
-              <div className="mt-6 flex flex-col sm:flex-row gap-4 w-full max-w-md">
-                <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 flex flex-col justify-between space-y-3">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3.5 w-full max-w-2xl">
+                {/* Solo Mode */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 flex flex-col justify-between space-y-3">
                   <div className="text-left">
                     <div className="text-xs font-mono font-bold text-pink-400 uppercase">
                       Solo Arcade Mode
                     </div>
                     <div className="text-sm font-bold text-white mt-1">Play with AI Bots</div>
                     <p className="text-[11px] text-zinc-400 mt-1">
-                      Immediate action! Play as Rat escaping AI traps or Architect hunting AI bots.
+                      Play as Rat escaping AI traps or Architect hunting bots.
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -1567,7 +1842,7 @@ export function TheArchitectAndTheRatsEngine({
                       onClick={() => startSoloMatch('Rat')}
                       className="flex-1 rounded-lg bg-pink-600 py-2 text-xs font-mono font-bold text-white shadow-md hover:bg-pink-500 transition-all"
                     >
-                      Play as Rat
+                      Rat
                     </button>
                     <button
                       onClick={() => startSoloMatch('Architect')}
@@ -1578,21 +1853,82 @@ export function TheArchitectAndTheRatsEngine({
                   </div>
                 </div>
 
-                <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 flex flex-col justify-between space-y-3">
+                {/* Host Online Room */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 flex flex-col justify-between space-y-3">
                   <div className="text-left">
                     <div className="text-xs font-mono font-bold text-cyan-400 uppercase">
-                      Local / Multi-Tab Room
+                      Online Arena (Host)
                     </div>
-                    <div className="text-sm font-bold text-white mt-1">Host Room Code</div>
+                    <div className="text-sm font-bold text-white mt-1">Create Room Code</div>
                     <p className="text-[11px] text-zinc-400 mt-1">
-                      Play across browser tabs or windows using instant zero-config sync.
+                      Host a 1v4 room for friends across multiple devices.
                     </p>
                   </div>
                   <button
                     onClick={createLobbyRoom}
-                    className="w-full rounded-lg bg-cyan-600 py-2 text-xs font-mono font-bold text-white shadow-md hover:bg-cyan-500 transition-all"
+                    className="w-full rounded-lg bg-cyan-600 py-2 text-xs font-mono font-bold text-white shadow-md hover:bg-cyan-500 transition-all flex items-center justify-center gap-1.5"
                   >
-                    HOST ROOM LOBBY
+                    <Users className="h-3.5 w-3.5" />
+                    <span>HOST MAZE</span>
+                  </button>
+                </div>
+
+                {/* Join Online Room */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 flex flex-col justify-between space-y-3">
+                  <div className="text-left">
+                    <div className="text-xs font-mono font-bold text-emerald-400 uppercase">
+                      Join Room (Rat)
+                    </div>
+                    <div className="text-sm font-bold text-white mt-1">Enter Code</div>
+                    <p className="text-[11px] text-zinc-400 mt-1">
+                      Enter a 4-letter room code to join an active arena.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setJoinModalOpen(true)}
+                    className="w-full rounded-lg bg-emerald-600 py-2 text-xs font-mono font-bold text-white shadow-md hover:bg-emerald-500 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <LogIn className="h-3.5 w-3.5" />
+                    <span>JOIN ROOM</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Join Room Code Modal */}
+          {joinModalOpen && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-2xl border-2 border-emerald-500/50 bg-zinc-900 p-6 shadow-2xl space-y-4">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <LogIn className="h-5 w-5" />
+                  <h3 className="text-lg font-bold text-white font-mono">ENTER MAZE ROOM CODE</h3>
+                </div>
+                <p className="text-xs text-zinc-400 font-mono">
+                  Type the 4-letter room code provided by the Architect:
+                </p>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={joinInputCode}
+                  onChange={(e) => setJoinInputCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. RATS"
+                  className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-2.5 font-mono text-xl font-bold tracking-widest text-emerald-300 text-center uppercase focus:border-emerald-500 focus:outline-none"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setJoinModalOpen(false)}
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 py-2 text-xs font-mono font-bold text-zinc-300 hover:bg-zinc-700 transition-all"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={() => joinLobbyRoom(joinInputCode)}
+                    disabled={!joinInputCode.trim()}
+                    className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-mono font-bold text-white hover:bg-emerald-500 disabled:opacity-50 transition-all shadow-md"
+                  >
+                    CONNECT
                   </button>
                 </div>
               </div>
