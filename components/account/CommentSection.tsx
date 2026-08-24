@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Send, Trash2 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
+import { formatDate } from '@/lib/utils/format';
 
 interface Comment {
   id: number;
@@ -179,7 +180,7 @@ export function CommentSection({
                   <div>
                     <span className="text-xs font-bold text-zinc-200">{c.username || 'User'}</span>
                     <span className="text-[10px] text-zinc-600 font-mono ml-2">
-                      {new Date(c.created_at).toLocaleDateString()}
+                      {formatDate(c.created_at)}
                     </span>
                   </div>
                 </div>

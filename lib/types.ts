@@ -2,12 +2,6 @@ export type UserRole = 'user' | 'moderator' | 'admin';
 
 export type PostStatus = 'draft' | 'scheduled' | 'published';
 
-export interface ScheduledFields {
-  status?: PostStatus;
-  scheduled_for?: string | null;
-  published_at?: string | null;
-}
-
 export interface Profile {
   id: string;
   username: string;
@@ -183,16 +177,6 @@ export interface CustomPage {
   enable_ads: boolean;
   created_at: string;
   updated_at?: string;
-}
-
-export interface Bookmark {
-  id: string;
-  user_id: string;
-  item_type: 'recipe' | 'review' | 'article' | 'game';
-  item_id: string;
-  item_title: string;
-  item_slug: string;
-  created_at: string;
 }
 
 export interface SiteSettings {

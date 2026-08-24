@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import type { ReactNode } from 'react';
 import { Clock, Send, FileText, Calendar } from 'lucide-react';
 import type { PostStatus } from '@/lib/types';
+import { formatDateTime } from '@/lib/utils/format';
 
 interface SchedulePostPanelProps {
   status: PostStatus;
@@ -19,23 +20,10 @@ export function SchedulePostPanel({ status, scheduledFor, onChange }: SchedulePo
 
   const formatPreview = (val: string) => {
     if (!val) return null;
-    try {
-      const d = new Date(val);
-      return d.toLocaleString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-    } catch {
-      return val;
-    }
+    return formatDateTime(val);
   };
 
-  const OPTIONS: { value: PostStatus; label: string; icon: React.ReactNode; desc: string }[] = [
+  const OPTIONS: { value: PostStatus; label: string; icon: ReactNode; desc: string }[] = [
     {
       value: 'published',
       label: 'Publish Now',

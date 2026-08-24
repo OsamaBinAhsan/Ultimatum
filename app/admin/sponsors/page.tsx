@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Sponsor, AdSlotPosition } from '@/lib/types';
+import { formatNumber } from '@/lib/utils/format';
 import confetti from 'canvas-confetti';
 
 export default function AdminSponsorsManager() {
@@ -234,12 +235,12 @@ export default function AdminSponsorsManager() {
                   <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono mt-1">
                     <span className="flex items-center gap-1">
                       <Eye className="w-3.5 h-3.5 text-cyan-400" />
-                      {sp.impressions_tracked.toLocaleString()} Impressions
+                      {formatNumber(sp.impressions_tracked)} Impressions
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <MousePointer className="w-3.5 h-3.5 text-emerald-400" />
-                      {sp.clicks_tracked.toLocaleString()} Clicks
+                      {formatNumber(sp.clicks_tracked)} Clicks
                     </span>
                     <span>•</span>
                     <span className="text-amber-400">

@@ -19,7 +19,6 @@ import {
   SiteSettings,
   LeaderboardEntry,
   Profile,
-  Bookmark,
 } from '@/lib/types';
 
 class PlatformStore {
@@ -32,7 +31,6 @@ class PlatformStore {
   private settings: SiteSettings = { ...INITIAL_SETTINGS };
   private leaderboard: LeaderboardEntry[] = [...INITIAL_LEADERBOARD];
   private profiles: Profile[] = [...INITIAL_PROFILES];
-  private bookmarks: Bookmark[] = [];
   private currentUser: Profile | null = INITIAL_PROFILES[0]; // Super Admin default
   private pendingScore: { gameId: string; score: number } | null = null;
 
@@ -54,7 +52,6 @@ class PlatformStore {
       localStorage.setItem('ultimatum_settings', JSON.stringify(this.settings));
       localStorage.setItem('ultimatum_leaderboard', JSON.stringify(this.leaderboard));
       localStorage.setItem('ultimatum_profiles', JSON.stringify(this.profiles));
-      localStorage.setItem('ultimatum_bookmarks', JSON.stringify(this.bookmarks));
       if (this.currentUser) {
         localStorage.setItem('ultimatum_current_user', JSON.stringify(this.currentUser));
       } else {
@@ -119,8 +116,6 @@ class PlatformStore {
       }
       const prof = localStorage.getItem('ultimatum_profiles');
       if (prof) this.profiles = JSON.parse(prof);
-      const bm = localStorage.getItem('ultimatum_bookmarks');
-      if (bm) this.bookmarks = JSON.parse(bm);
       const cur = localStorage.getItem('ultimatum_current_user');
       if (cur) {
         this.currentUser = JSON.parse(cur);
@@ -224,37 +219,6 @@ class PlatformStore {
   deleteArticle(id: string) {
     this.articles = this.articles.filter((a) => a.id !== id);
     this.saveToLocalStorage();
-  }
-
-  // --- BOOKMARKS & VAULT ---
-  getBookmarks(): Bookmark[] {
-    if (!this.currentUser) return [];
-    return this.bookmarks.filter((b) => b.user_id === this.currentUser?.id);
-  }
-  isBookmarked(itemId: string): boolean {
-    if (!this.currentUser) return false;
-    return this.bookmarks.some((b) => b.user_id === this.currentUser?.id && b.item_id === itemId);
-  }
-  toggleBookmark(item: { type: 'recipe' | 'review' | 'article' | 'game'; id: string; title: string; slug: string }) {
-    if (!this.currentUser) return false;
-    const exists = this.bookmarks.find(
-      (b) => b.user_id === this.currentUser?.id && b.item_id === item.id
-    );
-    if (exists) {
-      this.bookmarks = this.bookmarks.filter((b) => b.id !== exists.id);
-    } else {
-      this.bookmarks.push({
-        id: 'bm-' + Date.now(),
-        user_id: this.currentUser.id,
-        item_type: item.type,
-        item_id: item.id,
-        item_title: item.title,
-        item_slug: item.slug,
-        created_at: new Date().toISOString(),
-      });
-    }
-    this.saveToLocalStorage();
-    return !exists;
   }
 
   // --- GAMES ---
@@ -504,19 +468,14 @@ class PlatformStore {
   updateUserProfile(id: string, updates: Partial<Profile>): Profile | undefined {
     const idx = this.profiles.findIndex((p) => p.id === id);
     if (idx >= 0) {
-      this.profiles[idx] = { ...this.profiles[idx], ...updates };
+      this.profiles[idx] = { ...this.profiles[idx], ...updates, updated_at: new Date().toISOString() };
       if (this.currentUser?.id === id) {
-        this.currentUser = { ...this.currentUser, ...updates };
+        this.currentUser = this.profiles[idx];
       }
       this.saveToLocalStorage();
       return this.profiles[idx];
     }
     return undefined;
-  }
-  deleteUser(id: string) {
-    this.profiles = this.profiles.filter((p) => p.id !== id);
-    this.leaderboard = this.leaderboard.filter((e) => e.user_id !== id);
-    this.saveToLocalStorage();
   }
 
   // --- SITE SETTINGS ---

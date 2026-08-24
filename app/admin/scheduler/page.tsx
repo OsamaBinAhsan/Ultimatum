@@ -13,6 +13,7 @@ import {
   Newspaper,
   Sparkles,
 } from 'lucide-react';
+import { formatDate, formatDateTime } from '@/lib/utils/format';
 
 type TabKey = 'upcoming' | 'published' | 'log';
 
@@ -259,7 +260,7 @@ export default function SchedulerDashboard() {
                         isPastDue ? 'text-rose-400' : 'text-amber-400'
                       }`}
                     >
-                      {targetDate.toLocaleString()}
+                      {formatDateTime(targetDate)}
                     </div>
                     <div className="text-[10px] text-zinc-500">
                       {isPastDue ? '⚠️ Due for publish (Next cron tick)' : 'Scheduled'}
@@ -300,11 +301,7 @@ export default function SchedulerDashboard() {
                 </div>
                 <div className="text-left sm:text-right flex items-center sm:flex-col gap-3 sm:gap-1">
                   <div className="text-xs font-mono text-emerald-400">
-                    {item.published_at
-                      ? new Date(item.published_at).toLocaleDateString()
-                      : item.created_at
-                      ? new Date(item.created_at).toLocaleDateString()
-                      : '—'}
+                    {formatDate(item.published_at || item.created_at)}
                   </div>
                   <div className="text-[10px] text-zinc-500">Published</div>
                 </div>
@@ -342,7 +339,7 @@ export default function SchedulerDashboard() {
                 {log.slice(0, 30).map((entry) => (
                   <tr key={entry.id} className="hover:bg-zinc-800/30 transition-colors">
                     <td className="py-2.5 px-4 font-mono text-zinc-300">
-                      {new Date(entry.run_at).toLocaleString()}
+                      {formatDateTime(entry.run_at)}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-white">
                       {entry.total_published > 0 ? (

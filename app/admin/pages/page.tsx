@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { CustomPage } from '@/lib/types';
+import { formatDate } from '@/lib/utils/format';
 import confetti from 'canvas-confetti';
 
 export default function AdminPagesManager() {
@@ -273,7 +274,7 @@ export default function AdminPagesManager() {
                 <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
                   <span>URL: /pages/{page.slug}</span>
                   <span>•</span>
-                  <span>Created: {new Date(page.created_at).toLocaleDateString()}</span>
+                  <span>Created: {formatDate(page.created_at)}</span>
                 </div>
               </div>
 

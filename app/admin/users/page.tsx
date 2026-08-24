@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Profile, UserRole } from '@/lib/types';
+import { formatXP } from '@/lib/utils/format';
 import confetti from 'canvas-confetti';
 
 export default function AdminUserGovernance() {
@@ -144,7 +145,7 @@ export default function AdminUserGovernance() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <span className="font-black font-mono text-amber-400 text-sm">
-                        {p.points.toLocaleString()} XP
+                        {formatXP(p.points)}
                       </span>
                       <div className="flex items-center gap-1">
                         <button

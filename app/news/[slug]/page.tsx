@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Article } from '@/lib/types';
+import { formatDate } from '@/lib/utils/format';
 import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { ReadingMeritsTracker } from '@/components/merits/ReadingMeritsTracker';
 import { AdSlot } from '@/components/monetization/AdSlot';
@@ -117,7 +118,7 @@ export default function SingleNewsPage() {
           <span>•</span>
           <span>{article.read_time} min read</span>
           <span>•</span>
-          <span>Published: {new Date(article.published_at).toLocaleDateString()}</span>
+          <span>Published: {formatDate(article.published_at)}</span>
         </div>
       </header>
 
