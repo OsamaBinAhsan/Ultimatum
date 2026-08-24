@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMySQL } from '@/lib/db/mysql';
+import { platformStore } from '@/lib/data/store';
 
 export async function GET(request: Request) {
   try {
@@ -9,30 +10,37 @@ export async function GET(request: Request) {
     const contentId = searchParams.get('contentId');
 
     if (userId) {
-      const rows = await queryMySQL(
+      const rows = (await queryMySQL(
         `SELECT * FROM \`user_comments\` WHERE \`user_id\` = ? AND \`is_flagged\` = 0 ORDER BY \`created_at\` DESC LIMIT 50`,
         [userId]
-      );
-      return NextResponse.json({ success: true, data: rows || [] });
+      )) as any[];
+      if (rows && rows.length > 0) {
+        return NextResponse.json({ success: true, data: rows });
+      }
+      const local = platformStore.getComments(undefined, undefined, userId);
+      return NextResponse.json({ success: true, data: local });
     }
 
     if (contentType && contentId) {
-      const rows = await queryMySQL(
+      const rows = (await queryMySQL(
         `SELECT c.*, p.username, p.avatar_url FROM \`user_comments\` c
          LEFT JOIN \`profiles\` p ON c.user_id = p.id
          WHERE c.content_type = ? AND c.content_id = ? AND c.is_flagged = 0
          ORDER BY c.created_at DESC LIMIT 50`,
         [contentType, contentId]
-      );
-      return NextResponse.json({ success: true, data: rows || [] });
+      )) as any[];
+      if (rows && rows.length > 0) {
+        return NextResponse.json({ success: true, data: rows });
+      }
+      const local = platformStore.getComments(contentId, contentType);
+      return NextResponse.json({ success: true, data: local });
     }
 
-    return NextResponse.json(
-      { success: false, error: 'userId or contentType+contentId required' },
-      { status: 400 }
-    );
+    const all = platformStore.getComments();
+    return NextResponse.json({ success: true, data: all });
   } catch (err: unknown) {
-    return NextResponse.json({ success: false, error: (err as Error).message, data: [] }, { status: 500 });
+    const local = platformStore.getComments();
+    return NextResponse.json({ success: true, data: local });
   }
 }
 
@@ -46,12 +54,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Comment must be 2-1000 characters' }, { status: 400 });
     }
 
-    await queryMySQL(
-      `INSERT INTO \`user_comments\` (\`user_id\`, \`content_type\`, \`content_id\`, \`content_slug\`, \`body\`)
-       VALUES (?, ?, ?, ?, ?)`,
-      [userId, content_type, content_id, content_slug || '', body.trim()]
-    );
-    return NextResponse.json({ success: true });
+    const saved = platformStore.addComment({
+      user_id: userId,
+      content_type,
+      content_id,
+      content_slug,
+      body,
+    });
+
+    try {
+      await queryMySQL(
+        `INSERT INTO \`user_comments\` (\`user_id\`, \`content_type\`, \`content_id\`, \`content_slug\`, \`body\`)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, content_type, content_id, content_slug || '', body.trim()]
+      );
+    } catch {}
+
+    return NextResponse.json({ success: true, comment: saved });
   } catch (err: unknown) {
     return NextResponse.json({ success: false, error: (err as Error).message }, { status: 500 });
   }
@@ -60,18 +79,24 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const commentId = searchParams.get('commentId');
+    const commentId = searchParams.get('commentId') || searchParams.get('id');
     const userId = searchParams.get('userId');
-    if (!commentId || !userId) {
-      return NextResponse.json({ success: false, error: 'commentId and userId required' }, { status: 400 });
+    if (!commentId) {
+      return NextResponse.json({ success: false, error: 'commentId required' }, { status: 400 });
     }
 
-    await queryMySQL(
-      `DELETE FROM \`user_comments\` WHERE \`id\` = ? AND \`user_id\` = ?`,
-      [commentId, userId]
-    );
+    platformStore.deleteComment(commentId, userId || undefined);
+
+    try {
+      await queryMySQL(
+        `DELETE FROM \`user_comments\` WHERE \`id\` = ?`,
+        [commentId]
+      );
+    } catch {}
+
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     return NextResponse.json({ success: false, error: (err as Error).message }, { status: 500 });
   }
 }
+

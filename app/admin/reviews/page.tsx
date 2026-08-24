@@ -15,6 +15,7 @@ import { platformStore } from '@/lib/data/store';
 import { Review, ReviewCategory, PostStatus } from '@/lib/types';
 import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
+import { formatDateTime } from '@/lib/utils/format';
 
 export default function AdminReviewsManager() {
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -51,7 +52,7 @@ export default function AdminReviewsManager() {
   const [specVal, setSpecVal] = useState('');
 
   useEffect(() => {
-    setReviews(platformStore.getReviews());
+    setReviews(platformStore.getAllReviews());
   }, []);
 
   const handleOpenCreate = () => {
@@ -141,10 +142,24 @@ export default function AdminReviewsManager() {
     }
 
     platformStore.saveReview(form);
-    setReviews(platformStore.getReviews());
+    setReviews(platformStore.getAllReviews());
     setIsEditing(false);
-    setFeedback(`Review for "${form.product_name}" published successfully!`);
-    confetti({ particleCount: 70, spread: 60 });
+
+    if (form.status === 'scheduled') {
+      setFeedback(`Review for "${form.product_name}" scheduled for ${form.scheduled_for ? formatDateTime(form.scheduled_for) : 'future release'}!`);
+    } else if (form.status === 'draft') {
+      setFeedback(`Review for "${form.product_name}" saved as draft.`);
+    } else {
+      setFeedback(`Review for "${form.product_name}" published successfully!`);
+      confetti({ particleCount: 70, spread: 60 });
+    }
+
+    fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    }).catch(() => {});
+
     setTimeout(() => setFeedback(null), 5000);
   };
 
@@ -156,7 +171,7 @@ export default function AdminReviewsManager() {
   const handleDelete = (id: string, name: string) => {
     if (confirm(`Are you sure you want to delete the review "${name}"?`)) {
       platformStore.deleteReview(id);
-      setReviews(platformStore.getReviews());
+      setReviews(platformStore.getAllReviews());
       setFeedback(`Review "${name}" deleted.`);
       setTimeout(() => setFeedback(null), 4000);
     }
@@ -474,7 +489,22 @@ export default function AdminReviewsManager() {
                   <Image src={rev.hero_image_url} alt={rev.product_name} fill className="object-cover" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">{rev.product_name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-white">{rev.product_name}</h4>
+                    {rev.status === 'scheduled' ? (
+                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-purple-400 border border-purple-500/40">
+                        SCHEDULED: {rev.scheduled_for ? formatDateTime(rev.scheduled_for) : 'SOON'}
+                      </span>
+                    ) : rev.status === 'draft' ? (
+                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-[9px] font-mono font-bold text-zinc-400 border border-zinc-700">
+                        DRAFT
+                      </span>
+                    ) : (
+                      <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-400 border border-emerald-500/40">
+                        PUBLISHED
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
                     <span>{rev.category === 'tech_hardware' ? 'Hardware Gear' : 'Food Delivery'}</span>
                     <span>•</span>

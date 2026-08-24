@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryMySQL } from '@/lib/db/mysql';
+import { platformStore } from '@/lib/data/store';
 
 export async function POST(request: Request) {
   const secret = request.headers.get('x-scheduler-secret');
@@ -13,30 +14,40 @@ export async function POST(request: Request) {
   const start = Date.now();
 
   try {
+    const localPublished = platformStore.autoPublishScheduled();
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    const recipeRes = (await queryMySQL(
-      `UPDATE \`recipes\` SET \`status\` = 'published', \`published_at\` = NOW()
-       WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-      [now]
-    )) as any;
+    let recipes = 0;
+    let reviews = 0;
+    let articles = 0;
 
-    const reviewRes = (await queryMySQL(
-      `UPDATE \`reviews\` SET \`status\` = 'published', \`published_at\` = NOW()
-       WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-      [now]
-    )) as any;
+    try {
+      const recipeRes = (await queryMySQL(
+        `UPDATE \`recipes\` SET \`status\` = 'published', \`published_at\` = NOW()
+         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
+        [now]
+      )) as any;
 
-    const articleRes = (await queryMySQL(
-      `UPDATE \`articles\` SET \`status\` = 'published', \`published_at\` = NOW()
-       WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
-      [now]
-    )) as any;
+      const reviewRes = (await queryMySQL(
+        `UPDATE \`reviews\` SET \`status\` = 'published', \`published_at\` = NOW()
+         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
+        [now]
+      )) as any;
 
-    const recipes = recipeRes?.affectedRows ?? 0;
-    const reviews = reviewRes?.affectedRows ?? 0;
-    const articles = articleRes?.affectedRows ?? 0;
-    const total = recipes + reviews + articles;
+      const articleRes = (await queryMySQL(
+        `UPDATE \`articles\` SET \`status\` = 'published', \`published_at\` = NOW()
+         WHERE \`status\` = 'scheduled' AND \`scheduled_for\` <= ?`,
+        [now]
+      )) as any;
+
+      recipes = recipeRes?.affectedRows ?? 0;
+      reviews = reviewRes?.affectedRows ?? 0;
+      articles = articleRes?.affectedRows ?? 0;
+    } catch (mysqlErr) {
+      console.warn('[Scheduler] MySQL update skipped:', mysqlErr);
+    }
+
+    const total = Math.max(recipes + reviews + articles, localPublished);
     const duration = Date.now() - start;
 
     try {
@@ -60,3 +71,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
+

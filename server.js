@@ -499,9 +499,9 @@ app.prepare().then(() => {
   });
 
   // -----------------------------------------------------------------------
-  // Post Scheduler: Auto-publishes due scheduled posts every 15 minutes
+  // Post Scheduler: Auto-publishes due scheduled posts every 1 minute
   // -----------------------------------------------------------------------
-  const SCHEDULER_INTERVAL_MS = 15 * 60 * 1000;
+  const SCHEDULER_INTERVAL_MS = 60 * 1000;
   const SCHEDULER_SECRET = process.env.SCHEDULER_SECRET || '';
   setTimeout(() => {
     const runScheduler = async () => {

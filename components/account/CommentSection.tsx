@@ -39,15 +39,26 @@ export function CommentSection({
 
   const fetchComments = useCallback(async () => {
     try {
-      const res = await fetch(`/api/comments?post_id=${contentId}`);
-      const data = await res.json();
-      setComments(data.data || []);
+      const res = await fetch(
+        `/api/comments?post_id=${encodeURIComponent(contentId)}&contentSlug=${encodeURIComponent(contentSlug || '')}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setComments(data.data);
+          return;
+        }
+      }
+      // Fallback to local store
+      const local = platformStore.getComments(contentId || contentSlug, contentType);
+      setComments(local);
     } catch {
-      setComments([]);
+      const local = platformStore.getComments(contentId || contentSlug, contentType);
+      setComments(local);
     } finally {
       setLoading(false);
     }
-  }, [contentId]);
+  }, [contentId, contentSlug, contentType]);
 
   useEffect(() => {
     fetchComments();
@@ -60,29 +71,46 @@ export function CommentSection({
       if (onAuthRequired) onAuthRequired();
       return;
     }
-    if (!body.trim() || body.length < 2) return;
+    const trimmed = body.trim();
+    if (!trimmed || trimmed.length < 2) return;
     setPosting(true);
     try {
+      // Optimistic / local save
+      const savedComment = platformStore.addComment({
+        user_id: user.id,
+        content_type: contentType,
+        content_id: contentId,
+        content_slug: contentSlug,
+        body: trimmed,
+        username: user.username,
+        avatar_url: user.avatar_url,
+      });
+
+      setComments((prev) => [savedComment, ...prev.filter((c) => c.id !== savedComment.id)]);
+      setBody('');
+
+      // Send to server API
       const res = await fetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           post_id: contentId,
           user_id: user.id,
-          content: body.trim(),
+          content: trimmed,
           content_type: contentType,
           content_slug: contentSlug,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setPostError(data.error || 'Failed to post comment. Please try again.');
-        return;
+
+      const data = await res.json().catch(() => null);
+      if (data && data.success && data.comment) {
+        setComments((prev) => [
+          data.comment,
+          ...prev.filter((c) => c.id !== data.comment.id && c.id !== savedComment.id),
+        ]);
       }
-      setBody('');
-      await fetchComments();
     } catch (err: unknown) {
-      setPostError((err as Error).message || 'Network error while posting comment.');
+      console.warn('Comment post error:', err);
     } finally {
       setPosting(false);
     }
@@ -91,12 +119,17 @@ export function CommentSection({
   const handleDelete = async (commentId: number) => {
     if (!user) return;
     try {
+      platformStore.deleteComment(commentId, user.id);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      await fetch(`/api/comments?commentId=${commentId}&userId=${user.id}`, {
+        method: 'DELETE',
+      }).catch(() => {});
       await fetch(`/api/account/comments?commentId=${commentId}&userId=${user.id}`, {
         method: 'DELETE',
-      });
-      await fetchComments();
+      }).catch(() => {});
     } catch {}
   };
+
 
   return (
     <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-8 space-y-6 shadow-xl">

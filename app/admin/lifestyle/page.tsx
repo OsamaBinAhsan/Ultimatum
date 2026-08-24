@@ -18,9 +18,11 @@ import {
   Heading,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { Article, ShoppableItem } from '@/lib/types';
+import { Article, ShoppableItem, PostStatus } from '@/lib/types';
+import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
+import { formatDateTime } from '@/lib/utils/format';
 
 export default function AdminLifestyleManager() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -53,10 +55,12 @@ export default function AdminLifestyleManager() {
     ],
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
+    status: 'published' as PostStatus,
+    scheduled_for: null,
   });
 
   useEffect(() => {
-    setArticles(platformStore.getArticles('beauty_fashion'));
+    setArticles(platformStore.getAllArticles().filter((a) => a.category === 'beauty_fashion'));
   }, []);
 
   const handleOpenCreate = () => {
@@ -75,6 +79,8 @@ export default function AdminLifestyleManager() {
       shoppable_items: [],
       published_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
+      status: 'published' as PostStatus,
+      scheduled_for: null,
     });
     setIsEditing(true);
   };
@@ -129,10 +135,24 @@ export default function AdminLifestyleManager() {
       return;
     }
     platformStore.saveArticle(form);
-    setArticles(platformStore.getArticles('beauty_fashion'));
+    setArticles(platformStore.getAllArticles().filter((a) => a.category === 'beauty_fashion'));
     setIsEditing(false);
-    setFeedback(`Beauty & Fashion article "${form.title}" published!`);
-    confetti({ particleCount: 60, spread: 60 });
+
+    if (form.status === 'scheduled') {
+      setFeedback(`Article "${form.title}" scheduled for ${form.scheduled_for ? formatDateTime(form.scheduled_for) : 'future release'}!`);
+    } else if (form.status === 'draft') {
+      setFeedback(`Article "${form.title}" saved as draft.`);
+    } else {
+      setFeedback(`Beauty & Fashion article "${form.title}" published!`);
+      confetti({ particleCount: 60, spread: 60 });
+    }
+
+    fetch('/api/news', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    }).catch(() => {});
+
     setTimeout(() => setFeedback(null), 5000);
   };
 
@@ -144,7 +164,7 @@ export default function AdminLifestyleManager() {
   const handleDelete = (id: string, title: string) => {
     if (confirm(`Delete article "${title}"?`)) {
       platformStore.deleteArticle(id);
-      setArticles(platformStore.getArticles('beauty_fashion'));
+      setArticles(platformStore.getAllArticles().filter((a) => a.category === 'beauty_fashion'));
       setFeedback(`Article "${title}" deleted.`);
       setTimeout(() => setFeedback(null), 4000);
     }
@@ -396,6 +416,12 @@ export default function AdminLifestyleManager() {
               </div>
             </div>
 
+            <SchedulePostPanel
+              status={form.status || 'published'}
+              scheduledFor={form.scheduled_for || null}
+              onChange={(s, sf) => setForm((prev) => ({ ...prev, status: s, scheduled_for: sf }))}
+            />
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -433,7 +459,22 @@ export default function AdminLifestyleManager() {
                   <Image src={art.hero_image_url} alt={art.title} fill className="object-cover" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">{art.title}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-white">{art.title}</h4>
+                    {art.status === 'scheduled' ? (
+                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-purple-400 border border-purple-500/40">
+                        SCHEDULED: {art.scheduled_for ? formatDateTime(art.scheduled_for) : 'SOON'}
+                      </span>
+                    ) : art.status === 'draft' ? (
+                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-[9px] font-mono font-bold text-zinc-400 border border-zinc-700">
+                        DRAFT
+                      </span>
+                    ) : (
+                      <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-400 border border-emerald-500/40">
+                        PUBLISHED
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
                     <span>{art.shoppable_items?.length || 0} Shoppable pieces</span>
                     <span>•</span>

@@ -22,6 +22,7 @@ import { Article, ArticleCategory, PostStatus } from '@/lib/types';
 import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
+import { formatDateTime } from '@/lib/utils/format';
 
 export default function AdminNewsManager() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -36,12 +37,14 @@ export default function AdminNewsManager() {
     subtitle: '',
     category: 'gaming_news',
     hero_image_url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
-    gallery_images: [],
-    content: `# Breaking Dispatch Title\n\nFull journalistic report and benchmark findings.`,
-    tags: ['Gaming', 'Hardware'],
+    gallery_images: [
+      'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
+    ],
+    content: `# Breaking Dispatch\n\nWrite your breaking news story, silicon benchmarks, or editorial article here.`,
+    tags: ['Gaming News', 'Silicon'],
     author: 'Alex Mercer',
     read_time: 4,
-    is_breaking: true,
+    is_breaking: false,
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
     status: 'published' as PostStatus,
@@ -49,7 +52,7 @@ export default function AdminNewsManager() {
   });
 
   useEffect(() => {
-    const news = platformStore.getArticles().filter((a) => a.category !== 'beauty_fashion');
+    const news = platformStore.getAllArticles().filter((a) => a.category !== 'beauty_fashion');
     setArticles(news);
   }, []);
 
@@ -94,10 +97,24 @@ export default function AdminNewsManager() {
       return;
     }
     platformStore.saveArticle(form);
-    setArticles(platformStore.getArticles().filter((a) => a.category !== 'beauty_fashion'));
+    setArticles(platformStore.getAllArticles().filter((a) => a.category !== 'beauty_fashion'));
     setIsEditing(false);
-    setFeedback(`News story "${form.title}" published!`);
-    confetti({ particleCount: 60, spread: 60 });
+
+    if (form.status === 'scheduled') {
+      setFeedback(`Story "${form.title}" scheduled for ${form.scheduled_for ? formatDateTime(form.scheduled_for) : 'future release'}!`);
+    } else if (form.status === 'draft') {
+      setFeedback(`Story "${form.title}" saved as draft.`);
+    } else {
+      setFeedback(`News story "${form.title}" published!`);
+      confetti({ particleCount: 60, spread: 60 });
+    }
+
+    fetch('/api/news', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    }).catch(() => {});
+
     setTimeout(() => setFeedback(null), 5000);
   };
 
@@ -109,7 +126,7 @@ export default function AdminNewsManager() {
   const handleDelete = (id: string, title: string) => {
     if (confirm(`Delete news story "${title}"?`)) {
       platformStore.deleteArticle(id);
-      setArticles(platformStore.getArticles().filter((a) => a.category !== 'beauty_fashion'));
+      setArticles(platformStore.getAllArticles().filter((a) => a.category !== 'beauty_fashion'));
       setFeedback(`Story "${title}" deleted.`);
       setTimeout(() => setFeedback(null), 4000);
     }
@@ -381,6 +398,19 @@ export default function AdminNewsManager() {
                     {art.is_breaking && (
                       <span className="rounded bg-red-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-red-400 border border-red-500/40">
                         BREAKING
+                      </span>
+                    )}
+                    {art.status === 'scheduled' ? (
+                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-purple-400 border border-purple-500/40">
+                        SCHEDULED: {art.scheduled_for ? formatDateTime(art.scheduled_for) : 'SOON'}
+                      </span>
+                    ) : art.status === 'draft' ? (
+                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-[9px] font-mono font-bold text-zinc-400 border border-zinc-700">
+                        DRAFT
+                      </span>
+                    ) : (
+                      <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-400 border border-emerald-500/40">
+                        PUBLISHED
                       </span>
                     )}
                   </div>

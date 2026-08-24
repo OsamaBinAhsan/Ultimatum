@@ -15,6 +15,7 @@ import { platformStore } from '@/lib/data/store';
 import { Recipe, RecipeIngredient, RecipeInstruction, PostStatus } from '@/lib/types';
 import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
+import { formatDateTime } from '@/lib/utils/format';
 
 export default function AdminRecipesManager() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -54,7 +55,7 @@ export default function AdminRecipesManager() {
   });
 
   useEffect(() => {
-    setRecipes(platformStore.getRecipes());
+    setRecipes(platformStore.getAllRecipes());
   }, []);
 
   const handleOpenCreate = () => {
@@ -166,10 +167,24 @@ export default function AdminRecipesManager() {
     }
 
     platformStore.saveRecipe(form);
-    setRecipes(platformStore.getRecipes());
+    setRecipes(platformStore.getAllRecipes());
     setIsEditing(false);
-    setFeedback(`Recipe "${form.title}" saved successfully!`);
-    confetti({ particleCount: 70, spread: 60 });
+
+    if (form.status === 'scheduled') {
+      setFeedback(`Recipe "${form.title}" scheduled for ${form.scheduled_for ? formatDateTime(form.scheduled_for) : 'future release'}!`);
+    } else if (form.status === 'draft') {
+      setFeedback(`Recipe "${form.title}" saved as draft.`);
+    } else {
+      setFeedback(`Recipe "${form.title}" published successfully!`);
+      confetti({ particleCount: 70, spread: 60 });
+    }
+
+    fetch('/api/recipes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    }).catch(() => {});
+
     setTimeout(() => setFeedback(null), 5000);
   };
 
@@ -181,7 +196,7 @@ export default function AdminRecipesManager() {
   const handleDelete = (id: string, title: string) => {
     if (confirm(`Are you sure you want to delete the recipe "${title}"?`)) {
       platformStore.deleteRecipe(id);
-      setRecipes(platformStore.getRecipes());
+      setRecipes(platformStore.getAllRecipes());
       setFeedback(`Recipe "${title}" deleted.`);
       setTimeout(() => setFeedback(null), 4000);
     }
@@ -584,7 +599,22 @@ export default function AdminRecipesManager() {
                   <Image src={r.hero_image_url} alt={r.title} fill className="object-cover" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">{r.title}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-white">{r.title}</h4>
+                    {r.status === 'scheduled' ? (
+                      <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-purple-400 border border-purple-500/40">
+                        SCHEDULED: {r.scheduled_for ? formatDateTime(r.scheduled_for) : 'SOON'}
+                      </span>
+                    ) : r.status === 'draft' ? (
+                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-[9px] font-mono font-bold text-zinc-400 border border-zinc-700">
+                        DRAFT
+                      </span>
+                    ) : (
+                      <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-400 border border-emerald-500/40">
+                        PUBLISHED
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-1">
                     {r.cuisine && (
                       <span className="rounded bg-cyan-950/80 border border-cyan-700/50 px-1.5 py-0.5 text-[10px] text-cyan-300 font-bold">

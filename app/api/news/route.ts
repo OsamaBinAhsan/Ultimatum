@@ -8,10 +8,13 @@ export async function GET(request: Request) {
   const category = searchParams.get('category');
   const status = searchParams.get('status');
 
+  // Trigger any due scheduled articles to auto-publish
+  platformStore.autoPublishScheduled();
+
   // 1. HostGator MySQL Database
   try {
     if (slug) {
-      const mysqlRes = await queryMySQL('SELECT * FROM articles WHERE slug = ? LIMIT 1', [slug]);
+      const mysqlRes = (await queryMySQL('SELECT * FROM articles WHERE slug = ? LIMIT 1', [slug])) as any[];
       if (mysqlRes && Array.isArray(mysqlRes) && mysqlRes.length > 0) {
         return NextResponse.json({ success: true, data: mysqlRes[0] });
       }
@@ -22,13 +25,18 @@ export async function GET(request: Request) {
         query += ' AND category = ?';
         params.push(category);
       }
-      if (status) {
+      if (status === 'all') {
+        // no status filter
+      } else if (status) {
         query += ' AND status = ?';
         params.push(status);
+      } else {
+        // Public feed: only published or past scheduled
+        query += " AND (status = 'published' OR status IS NULL OR (status = 'scheduled' AND scheduled_for <= NOW()))";
       }
       query += ' ORDER BY published_at DESC, created_at DESC';
-      const mysqlRes = await queryMySQL(query, params);
-      if (mysqlRes && Array.isArray(mysqlRes)) {
+      const mysqlRes = (await queryMySQL(query, params)) as any[];
+      if (mysqlRes && Array.isArray(mysqlRes) && mysqlRes.length > 0) {
         return NextResponse.json({ success: true, count: mysqlRes.length, data: mysqlRes });
       }
     }
@@ -38,18 +46,12 @@ export async function GET(request: Request) {
 
   // 2. Isomorphic Fallback Store
   if (slug) {
-    const art = platformStore.getArticleBySlug(slug);
+    const art = platformStore.getArticleBySlug(slug, status === 'all');
     if (!art) return NextResponse.json({ error: 'News story not found' }, { status: 404 });
     return NextResponse.json({ success: true, data: art });
   }
 
-  let articles = platformStore.getArticles();
-  if (category) {
-    articles = articles.filter((a) => a.category === category);
-  }
-  if (status) {
-    articles = articles.filter((a) => (a.status || 'published') === status);
-  }
+  const articles = platformStore.getArticles(category || undefined, (status as any) || 'published');
   return NextResponse.json({ success: true, count: articles.length, data: articles });
 }
 
@@ -61,8 +63,14 @@ export async function POST(request: Request) {
     }
 
     const category = body.category || 'gaming_news';
-    const status = body.status || 'published';
-    const scheduled_for = body.scheduled_for || null;
+    let status = body.status || 'published';
+    let scheduled_for = body.scheduled_for || null;
+
+    if (status === 'scheduled' && scheduled_for) {
+      if (new Date(scheduled_for).getTime() <= Date.now()) {
+        status = 'published';
+      }
+    }
 
     // 1. MySQL Database Save
     try {
@@ -116,3 +124,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: errorObj?.message || 'Server error' }, { status: 500 });
   }
 }
+

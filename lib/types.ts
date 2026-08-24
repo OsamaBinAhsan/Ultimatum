@@ -195,3 +195,17 @@ export interface SiteSettings {
   };
   maintenance_mode?: boolean;
 }
+
+export interface Comment {
+  id: number;
+  user_id: string;
+  content_type: 'recipe' | 'review' | 'article' | 'game' | string;
+  content_id: string;
+  content_slug?: string;
+  body: string;
+  username?: string;
+  avatar_url?: string;
+  is_flagged?: number;
+  created_at: string;
+}
+

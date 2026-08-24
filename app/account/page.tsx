@@ -44,7 +44,7 @@ interface SavedRecipe {
 }
 
 interface UserComment {
-  id: number;
+  id: number | string;
   content_type: string;
   content_id: string;
   content_slug: string;
@@ -64,9 +64,9 @@ export default function AccountPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    const u = platformStore.getCurrentUser();
-    setUser(u);
-    if (u) setAvatarInput(u.avatar_url || '');
+    const current = platformStore.getCurrentUser();
+    setUser(current);
+    if (current) setAvatarInput(current.avatar_url || '');
   }, []);
 
   const fetchTabData = useCallback(async (t: TabKey) => {
@@ -83,11 +83,17 @@ export default function AccountPage() {
         setSavedRecipes(data.data || []);
       } else if (t === 'comments') {
         const res = await fetch(`/api/account/comments?userId=${user.id}`);
-        const data = await res.json();
-        setComments(data.data || []);
+        const data = await res.json().catch(() => ({ data: [] }));
+        if (data.data && data.data.length > 0) {
+          setComments(data.data);
+        } else {
+          setComments(platformStore.getComments(undefined, user.id));
+        }
       }
     } catch {
-      // Fallback
+      if (t === 'comments') {
+        setComments(platformStore.getComments(undefined, user.id));
+      }
     } finally {
       setLoading(false);
     }
@@ -105,12 +111,13 @@ export default function AccountPage() {
     setSavedRecipes((prev) => prev.filter((r) => r.recipe_id !== recipeId));
   };
 
-  const handleDeleteComment = async (commentId: number) => {
+  const handleDeleteComment = async (commentId: number | string) => {
     if (!user) return;
+    platformStore.deleteComment(commentId);
     await fetch(`/api/account/comments?commentId=${commentId}&userId=${user.id}`, {
       method: 'DELETE',
-    });
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
+    }).catch(() => {});
+    setComments((prev) => prev.filter((c) => String(c.id) !== String(commentId)));
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {

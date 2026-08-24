@@ -1,4 +1,4 @@
-import { Game, Recipe, Review, Sponsor, CustomPage, SiteSettings, LeaderboardEntry, Profile, Article } from '@/lib/types';
+import { Game, Recipe, Review, Sponsor, CustomPage, SiteSettings, LeaderboardEntry, Profile, Article, Comment } from '@/lib/types';
 
 export const INITIAL_PROFILES: Profile[] = [
   {
@@ -1613,3 +1613,62 @@ export const INITIAL_SETTINGS: SiteSettings = {
   },
   maintenance_mode: false,
 };
+
+export const INITIAL_COMMENTS: Comment[] = [
+  {
+    id: 1,
+    user_id: 'user-002',
+    content_type: 'recipe',
+    content_id: 'rec-001',
+    content_slug: 'wagyu-truffle-smash-burger',
+    body: 'Made this tonight in a 12-inch cast iron skillet. The truffle aioli recipe with garlic confit is pure culinary gold!',
+    username: 'CyberGourmet',
+    avatar_url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
+    created_at: '2026-08-20T14:30:00Z',
+  },
+  {
+    id: 2,
+    user_id: 'user-004',
+    content_type: 'recipe',
+    content_id: 'rec-001',
+    content_slug: 'wagyu-truffle-smash-burger',
+    body: 'Pro tip: smash with parchment paper between the press and patty so the caramelized crust never sticks to the metal.',
+    username: 'SpiceOverlord',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+    created_at: '2026-08-21T18:15:00Z',
+  },
+  {
+    id: 3,
+    user_id: 'user-003',
+    content_type: 'article',
+    content_id: 'art-001',
+    content_slug: 'cyberpunk-techwear-modular-shells-2026',
+    body: 'The magnetic Fidlock pocket integration on the AcroPulse shell is insane in wet weather. Completely waterproof so far.',
+    username: 'AeroStrike',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    created_at: '2026-08-22T09:45:00Z',
+  },
+  {
+    id: 4,
+    user_id: 'user-001',
+    content_type: 'review',
+    content_id: 'rev-001',
+    content_slug: 'steam-deck-oled-2026-teardown',
+    body: 'The copper heat-pipe upgrade alone drops APU temps by 6°C on Cyberpunk 2077 ultra presets. Huge win for handheld gaming.',
+    username: 'PixelNinja',
+    avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+    created_at: '2026-08-23T11:20:00Z',
+  },
+  {
+    id: 5,
+    user_id: 'user-002',
+    content_type: 'game',
+    content_id: 'game-001',
+    content_slug: 'neon-asteroid-blitz',
+    body: 'Hit 24,500 points on wave 12! The plasma bomb combo multiplier is the key to top leaderboard placement.',
+    username: 'CyberGourmet',
+    avatar_url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
+    created_at: '2026-08-24T10:00:00Z',
+  },
+];
+

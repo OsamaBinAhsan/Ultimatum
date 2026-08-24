@@ -8,6 +8,7 @@ import {
   INITIAL_SETTINGS,
   INITIAL_LEADERBOARD,
   INITIAL_PROFILES,
+  INITIAL_COMMENTS,
 } from './mock-data';
 import {
   Game,
@@ -19,6 +20,8 @@ import {
   SiteSettings,
   LeaderboardEntry,
   Profile,
+  Comment,
+  PostStatus,
 } from '@/lib/types';
 
 class PlatformStore {
@@ -31,6 +34,7 @@ class PlatformStore {
   private settings: SiteSettings = { ...INITIAL_SETTINGS };
   private leaderboard: LeaderboardEntry[] = [...INITIAL_LEADERBOARD];
   private profiles: Profile[] = [...INITIAL_PROFILES];
+  private comments: Comment[] = [...INITIAL_COMMENTS];
   private currentUser: Profile | null = INITIAL_PROFILES[0]; // Super Admin default
   private pendingScore: { gameId: string; score: number } | null = null;
 
@@ -52,6 +56,7 @@ class PlatformStore {
       localStorage.setItem('ultimatum_settings', JSON.stringify(this.settings));
       localStorage.setItem('ultimatum_leaderboard', JSON.stringify(this.leaderboard));
       localStorage.setItem('ultimatum_profiles', JSON.stringify(this.profiles));
+      localStorage.setItem('ultimatum_comments', JSON.stringify(this.comments));
       if (this.currentUser) {
         localStorage.setItem('ultimatum_current_user', JSON.stringify(this.currentUser));
       } else {
@@ -120,6 +125,14 @@ class PlatformStore {
       if (cur) {
         this.currentUser = JSON.parse(cur);
       }
+      const c = localStorage.getItem('ultimatum_comments');
+      if (c) {
+        const storedComments: Comment[] = JSON.parse(c);
+        const existingIds = new Set(storedComments.map((item) => String(item.id)));
+        const missingComments = INITIAL_COMMENTS.filter((item) => !existingIds.has(String(item.id)));
+        this.comments = [...storedComments, ...missingComments];
+      }
+      this.autoPublishScheduled();
     } catch (e) {
       console.warn('LocalStorage load failed:', e);
     }
@@ -197,17 +210,43 @@ class PlatformStore {
   }
 
   // --- ARTICLES (Beauty, Fashion, News, Blogs) ---
-  getArticles(category?: string): Article[] {
-    if (category) {
-      return this.articles.filter((a) => a.category === category);
-    }
+  getAllArticles(): Article[] {
+    this.autoPublishScheduled();
     return this.articles;
   }
-  getArticleBySlug(slug: string): Article | undefined {
-    return this.articles.find((a) => a.slug === slug);
+  getArticles(category?: string, status?: PostStatus | 'all'): Article[] {
+    this.autoPublishScheduled();
+    let list = this.articles;
+    if (category) {
+      list = list.filter((a) => a.category === category);
+    }
+    if (status === 'all') {
+      return list;
+    }
+    if (status) {
+      return list.filter((a) => (a.status || 'published') === status);
+    }
+    return list.filter((a) => (a.status || 'published') === 'published');
+  }
+  getArticleBySlug(slug: string, allowUnpublished: boolean = false): Article | undefined {
+    this.autoPublishScheduled();
+    const art = this.articles.find((a) => a.slug === slug);
+    if (!art) return undefined;
+    if (allowUnpublished || this.isAdmin()) return art;
+    if (art.status === 'draft') return undefined;
+    if (art.status === 'scheduled' && art.scheduled_for && new Date(art.scheduled_for).getTime() > Date.now()) {
+      return undefined;
+    }
+    return art;
   }
   saveArticle(article: Article): Article {
-    const idx = this.articles.findIndex((a) => a.id === article.id);
+    if (article.status === 'scheduled' && article.scheduled_for) {
+      if (new Date(article.scheduled_for).getTime() <= Date.now()) {
+        article.status = 'published';
+        article.published_at = article.published_at || new Date().toISOString();
+      }
+    }
+    const idx = this.articles.findIndex((a) => a.id === article.id || (article.slug && a.slug === article.slug));
     if (idx >= 0) {
       this.articles[idx] = article;
     } else {
@@ -244,14 +283,35 @@ class PlatformStore {
   }
 
   // --- RECIPES ---
-  getRecipes(): Recipe[] {
+  getAllRecipes(): Recipe[] {
+    this.autoPublishScheduled();
     return this.recipes;
   }
-  getRecipeBySlug(slug: string): Recipe | undefined {
-    return this.recipes.find((r) => r.slug === slug);
+  getRecipes(status?: PostStatus | 'all'): Recipe[] {
+    this.autoPublishScheduled();
+    if (status === 'all') return this.recipes;
+    if (status) return this.recipes.filter((r) => (r.status || 'published') === status);
+    return this.recipes.filter((r) => (r.status || 'published') === 'published');
+  }
+  getRecipeBySlug(slug: string, allowUnpublished: boolean = false): Recipe | undefined {
+    this.autoPublishScheduled();
+    const rec = this.recipes.find((r) => r.slug === slug);
+    if (!rec) return undefined;
+    if (allowUnpublished || this.isAdmin()) return rec;
+    if (rec.status === 'draft') return undefined;
+    if (rec.status === 'scheduled' && rec.scheduled_for && new Date(rec.scheduled_for).getTime() > Date.now()) {
+      return undefined;
+    }
+    return rec;
   }
   saveRecipe(recipe: Recipe): Recipe {
-    const idx = this.recipes.findIndex((r) => r.id === recipe.id);
+    if (recipe.status === 'scheduled' && recipe.scheduled_for) {
+      if (new Date(recipe.scheduled_for).getTime() <= Date.now()) {
+        recipe.status = 'published';
+        recipe.published_at = recipe.published_at || new Date().toISOString();
+      }
+    }
+    const idx = this.recipes.findIndex((r) => r.id === recipe.id || (recipe.slug && r.slug === recipe.slug));
     if (idx >= 0) {
       this.recipes[idx] = recipe;
     } else {
@@ -266,14 +326,39 @@ class PlatformStore {
   }
 
   // --- REVIEWS ---
-  getReviews(): Review[] {
+  getAllReviews(): Review[] {
+    this.autoPublishScheduled();
     return this.reviews;
   }
-  getReviewBySlug(slug: string): Review | undefined {
-    return this.reviews.find((r) => r.slug === slug);
+  getReviews(category?: string, status?: PostStatus | 'all'): Review[] {
+    this.autoPublishScheduled();
+    let list = this.reviews;
+    if (category) {
+      list = list.filter((r) => r.category === category);
+    }
+    if (status === 'all') return list;
+    if (status) return list.filter((r) => (r.status || 'published') === status);
+    return list.filter((r) => (r.status || 'published') === 'published');
+  }
+  getReviewBySlug(slug: string, allowUnpublished: boolean = false): Review | undefined {
+    this.autoPublishScheduled();
+    const rev = this.reviews.find((r) => r.slug === slug);
+    if (!rev) return undefined;
+    if (allowUnpublished || this.isAdmin()) return rev;
+    if (rev.status === 'draft') return undefined;
+    if (rev.status === 'scheduled' && rev.scheduled_for && new Date(rev.scheduled_for).getTime() > Date.now()) {
+      return undefined;
+    }
+    return rev;
   }
   saveReview(review: Review): Review {
-    const idx = this.reviews.findIndex((r) => r.id === review.id);
+    if (review.status === 'scheduled' && review.scheduled_for) {
+      if (new Date(review.scheduled_for).getTime() <= Date.now()) {
+        review.status = 'published';
+        review.published_at = review.published_at || new Date().toISOString();
+      }
+    }
+    const idx = this.reviews.findIndex((r) => r.id === review.id || (review.slug && r.slug === review.slug));
     if (idx >= 0) {
       this.reviews[idx] = review;
     } else {
@@ -286,6 +371,7 @@ class PlatformStore {
     this.reviews = this.reviews.filter((r) => r.id !== id);
     this.saveToLocalStorage();
   }
+
 
   // --- CUSTOM SUB-PAGES ---
   getPages(): CustomPage[] {
@@ -488,12 +574,135 @@ class PlatformStore {
     return this.settings;
   }
 
+  // --- COMMENTS & COMMUNITY ---
+  getComments(contentIdOrSlug?: string, contentType?: string, userId?: string): Comment[] {
+    let list = [...this.comments];
+    if (userId) {
+      list = list.filter((c) => String(c.user_id) === String(userId));
+    }
+    if (contentType) {
+      list = list.filter((c) => c.content_type === contentType);
+    }
+    if (contentIdOrSlug) {
+      list = list.filter(
+        (c) =>
+          String(c.content_id) === String(contentIdOrSlug) ||
+          c.content_slug === contentIdOrSlug
+      );
+    }
+    return list
+      .map((c) => {
+        const prof = this.profiles.find((p) => String(p.id) === String(c.user_id));
+        return {
+          ...c,
+          username: c.username || prof?.username || 'Community Member',
+          avatar_url: c.avatar_url || prof?.avatar_url,
+        };
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  addComment(commentData: {
+    user_id?: string;
+    content_type?: string;
+    content_id: string;
+    content_slug?: string;
+    body: string;
+    username?: string;
+    avatar_url?: string;
+  }): Comment {
+    const user = this.currentUser || this.profiles[0];
+    const newComment: Comment = {
+      id: Date.now(),
+      user_id: commentData.user_id || user.id,
+      content_type: commentData.content_type || 'article',
+      content_id: String(commentData.content_id),
+      content_slug: commentData.content_slug || String(commentData.content_id),
+      body: commentData.body.trim(),
+      username: commentData.username || user.username || 'User',
+      avatar_url: commentData.avatar_url || user.avatar_url,
+      created_at: new Date().toISOString(),
+    };
+
+    this.comments.unshift(newComment);
+    this.saveToLocalStorage();
+    return newComment;
+  }
+
+  deleteComment(id: number | string, userId?: string): boolean {
+    const numericId = Number(id);
+    const prevCount = this.comments.length;
+    this.comments = this.comments.filter((c) => {
+      if (c.id === numericId || String(c.id) === String(id)) {
+        if (userId && String(c.user_id) !== String(userId) && !this.isAdmin()) {
+          return true;
+        }
+        return false;
+      }
+      return true;
+    });
+
+    const deleted = this.comments.length < prevCount;
+    if (deleted) {
+      this.saveToLocalStorage();
+    }
+    return deleted;
+  }
+
   // --- SCHEDULER HELPERS ---
+  autoPublishScheduled(): number {
+    const now = Date.now();
+    let count = 0;
+    let changed = false;
+
+    this.recipes.forEach((r) => {
+      if (r.status === 'scheduled' && r.scheduled_for) {
+        const t = new Date(r.scheduled_for).getTime();
+        if (!isNaN(t) && t <= now) {
+          r.status = 'published';
+          r.published_at = r.published_at || new Date().toISOString();
+          count++;
+          changed = true;
+        }
+      }
+    });
+
+    this.reviews.forEach((rv) => {
+      if (rv.status === 'scheduled' && rv.scheduled_for) {
+        const t = new Date(rv.scheduled_for).getTime();
+        if (!isNaN(t) && t <= now) {
+          rv.status = 'published';
+          rv.published_at = rv.published_at || new Date().toISOString();
+          count++;
+          changed = true;
+        }
+      }
+    });
+
+    this.articles.forEach((a) => {
+      if (a.status === 'scheduled' && a.scheduled_for) {
+        const t = new Date(a.scheduled_for).getTime();
+        if (!isNaN(t) && t <= now) {
+          a.status = 'published';
+          a.published_at = a.published_at || new Date().toISOString();
+          count++;
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      this.saveToLocalStorage();
+    }
+    return count;
+  }
+
   getScheduledPosts(): {
     recipes: Recipe[];
     reviews: Review[];
     articles: Article[];
   } {
+    this.autoPublishScheduled();
     return {
       recipes: this.recipes.filter((r) => r.status === 'scheduled'),
       reviews: this.reviews.filter((r) => r.status === 'scheduled'),
@@ -502,39 +711,10 @@ class PlatformStore {
   }
 
   runLocalScheduler(): { publishedCount: number } {
-    const now = Date.now();
-    let count = 0;
-
-    this.recipes.forEach((r) => {
-      if (r.status === 'scheduled' && r.scheduled_for && new Date(r.scheduled_for).getTime() <= now) {
-        r.status = 'published';
-        r.published_at = new Date().toISOString();
-        count++;
-      }
-    });
-
-    this.reviews.forEach((rv) => {
-      if (rv.status === 'scheduled' && rv.scheduled_for && new Date(rv.scheduled_for).getTime() <= now) {
-        rv.status = 'published';
-        rv.published_at = new Date().toISOString();
-        count++;
-      }
-    });
-
-    this.articles.forEach((a) => {
-      if (a.status === 'scheduled' && a.scheduled_for && new Date(a.scheduled_for).getTime() <= now) {
-        a.status = 'published';
-        a.published_at = new Date().toISOString();
-        count++;
-      }
-    });
-
-    if (count > 0) {
-      this.saveToLocalStorage();
-    }
-
+    const count = this.autoPublishScheduled();
     return { publishedCount: count };
   }
 }
 
 export const platformStore = new PlatformStore();
+

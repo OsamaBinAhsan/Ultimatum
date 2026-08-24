@@ -7,6 +7,9 @@ export async function GET(request: Request) {
   const slug = searchParams.get('slug');
   const status = searchParams.get('status');
 
+  // Trigger local scheduler checks
+  platformStore.autoPublishScheduled();
+
   // 1. Check MySQL
   try {
     if (slug) {
@@ -14,16 +17,24 @@ export async function GET(request: Request) {
       if (rows && rows.length > 0) {
         return NextResponse.json({ success: true, data: rows[0] });
       }
+    } else if (status === 'all') {
+      const rows = (await queryMySQL('SELECT * FROM `recipes` ORDER BY `created_at` DESC')) as any[];
+      if (rows && rows.length > 0) {
+        return NextResponse.json({ success: true, count: rows.length, data: rows });
+      }
     } else if (status) {
       const rows = (await queryMySQL(
         'SELECT * FROM `recipes` WHERE `status` = ? ORDER BY `created_at` DESC',
         [status]
       )) as any[];
-      if (rows) {
+      if (rows && rows.length > 0) {
         return NextResponse.json({ success: true, count: rows.length, data: rows });
       }
     } else {
-      const rows = (await queryMySQL('SELECT * FROM `recipes` ORDER BY `created_at` DESC')) as any[];
+      // Public view: only published or due scheduled
+      const rows = (await queryMySQL(
+        "SELECT * FROM `recipes` WHERE `status` = 'published' OR `status` IS NULL OR (`status` = 'scheduled' AND `scheduled_for` <= NOW()) ORDER BY `created_at` DESC"
+      )) as any[];
       if (rows && rows.length > 0) {
         return NextResponse.json({ success: true, count: rows.length, data: rows });
       }
@@ -34,21 +45,26 @@ export async function GET(request: Request) {
 
   // 2. Fallback to PlatformStore
   if (slug) {
-    const recipe = platformStore.getRecipeBySlug(slug);
+    const recipe = platformStore.getRecipeBySlug(slug, status === 'all');
     if (!recipe) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true, data: recipe });
   }
 
-  let recipes = platformStore.getRecipes();
-  if (status) {
-    recipes = recipes.filter((r) => (r.status || 'published') === status);
-  }
+  const recipes = platformStore.getRecipes((status as any) || 'published');
   return NextResponse.json({ success: true, count: recipes.length, data: recipes });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    let status = body.status || 'published';
+    let scheduled_for = body.scheduled_for || null;
+
+    if (status === 'scheduled' && scheduled_for) {
+      if (new Date(scheduled_for).getTime() <= Date.now()) {
+        status = 'published';
+      }
+    }
 
     // MySQL upsert attempt
     try {
@@ -83,8 +99,8 @@ export async function POST(request: Request) {
             JSON.stringify(body.ingredients || []),
             JSON.stringify(body.instructions || []),
             body.author || 'Chef Marco',
-            body.status || 'published',
-            body.scheduled_for || null,
+            status,
+            scheduled_for,
           ]
         );
       }
@@ -92,10 +108,11 @@ export async function POST(request: Request) {
       console.warn('MySQL save recipe skipped:', dbErr);
     }
 
-    const saved = platformStore.saveRecipe(body);
+    const saved = platformStore.saveRecipe({ ...body, status, scheduled_for });
     return NextResponse.json({ success: true, data: saved });
   } catch (err: unknown) {
     const errorObj = err as Error;
     return NextResponse.json({ success: false, error: errorObj.message || 'Failed to save recipe' }, { status: 500 });
   }
 }
+
