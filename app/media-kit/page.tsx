@@ -1,20 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Sparkles,
-  TrendingUp,
-  Users,
   Eye,
   DollarSign,
   Gamepad2,
   Utensils,
-  Cpu,
   CheckCircle,
   Mail,
   Send,
   ArrowRight,
-  ShieldCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 

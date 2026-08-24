@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -12,7 +11,6 @@ import {
   Utensils,
   Cpu,
   Newspaper,
-  ExternalLink,
   Sparkles,
 } from 'lucide-react';
 

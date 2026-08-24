@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import { Fragment } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Play, Quote, Sparkles } from 'lucide-react';
+import { ExternalLink, Play, Quote } from 'lucide-react';
 
 interface ArticleBodyRendererProps {
   content: string;
@@ -253,10 +253,10 @@ export function ArticleBodyRenderer({ content, className = '' }: ArticleBodyRend
         return (
           <p key={bIdx} className="leading-relaxed">
             {lines.map((line, lIdx) => (
-              <React.Fragment key={lIdx}>
+              <Fragment key={lIdx}>
                 {renderInline(line)}
                 {lIdx < lines.length - 1 && <br />}
-              </React.Fragment>
+              </Fragment>
             ))}
           </p>
         );

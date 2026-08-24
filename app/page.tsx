@@ -1,4 +1,3 @@
-import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -6,14 +5,8 @@ import {
   Utensils,
   Cpu,
   Trophy,
-  Flame,
-  Clock,
-  Star,
   Sparkles,
   ArrowRight,
-  TrendingUp,
-  ShieldCheck,
-  CheckCircle2,
   Newspaper,
   ShoppingBag,
   Coins,

@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Gamepad2,
   Utensils,
   MessageSquare,
   User,
-  Trophy,
   Star,
   Clock,
   Heart,
@@ -16,11 +15,8 @@ import {
   Shield,
   Flame,
   Coins,
-  Sparkles,
   ExternalLink,
   ChevronRight,
-  LogOut,
-  RefreshCw,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Profile } from '@/lib/types';

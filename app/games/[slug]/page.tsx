@@ -1,21 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
-  Gamepad2,
   Trophy,
-  Flame,
-  Medal,
-  Award,
   Sparkles,
   Share2,
   Info,
   ArrowLeft,
-  Users,
-  Play,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Game, LeaderboardEntry } from '@/lib/types';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Recipe, Review, Game, Article } from '@/lib/types';
 
 interface RecipeJsonLdProps {

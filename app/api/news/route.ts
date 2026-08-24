@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { queryMySQL } from '@/lib/db/mysql';
 
 export async function GET(request: Request) {
@@ -37,18 +36,7 @@ export async function GET(request: Request) {
     console.warn('MySQL news query skipped:', err);
   }
 
-  // 2. Supabase Database
-  if (isSupabaseConfigured()) {
-    let query = supabase.from('articles').select('*');
-    if (category) query = query.eq('category', category);
-    if (status) query = query.eq('status', status);
-    if (slug) query = query.eq('slug', slug);
-    const { data, error } = await query;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, data: slug ? data[0] : data });
-  }
-
-  // 3. Isomorphic Fallback Store
+  // 2. Isomorphic Fallback Store
   if (slug) {
     const art = platformStore.getArticleBySlug(slug);
     if (!art) return NextResponse.json({ error: 'News story not found' }, { status: 404 });
@@ -119,16 +107,6 @@ export async function POST(request: Request) {
       );
     } catch (mysqlErr) {
       console.warn('MySQL news article save skipped:', mysqlErr);
-    }
-
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('articles')
-        .upsert({ ...body, category, status, scheduled_for })
-        .select()
-        .single();
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, data });
     }
 
     const saved = platformStore.saveArticle({ ...body, category, status, scheduled_for });

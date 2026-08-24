@@ -1,7 +1,5 @@
 'use client';
 
-import React from 'react';
-
 export function GameLoadingFallback({ name }: { name: string }) {
   return (
     <div className="relative w-full aspect-video rounded-2xl bg-zinc-950 border border-zinc-800 flex flex-col items-center justify-center gap-5 select-none overflow-hidden shadow-2xl">

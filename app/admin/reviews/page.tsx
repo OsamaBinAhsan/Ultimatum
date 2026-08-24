@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -10,8 +10,6 @@ import {
   Edit3,
   CheckCircle,
   Eye,
-  Star,
-  ShoppingBag,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Review, ReviewCategory, PostStatus } from '@/lib/types';

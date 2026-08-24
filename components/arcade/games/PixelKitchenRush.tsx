@@ -1,19 +1,13 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Play,
-  RotateCcw,
   Volume2,
   VolumeX,
   Flame,
-  Sparkles,
-  Trophy,
   Utensils,
   Clock,
-  CheckCircle,
-  Trash2,
-  Users,
   Award,
   DollarSign,
   Tv,
@@ -22,7 +16,6 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
-import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import confetti from 'canvas-confetti';
@@ -207,7 +200,7 @@ interface KitchenState {
   };
 }
 
-export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: PixelKitchenProps) {
+export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -232,7 +225,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
   const [ordersBurned, setOrdersBurned] = useState<number>(0);
   const [ordersFailed, setOrdersFailed] = useState<number>(0);
   const [totalTipsEarned, setTotalTipsEarned] = useState<number>(0);
-  const [myScore, setMyScore] = useState<number>(0);
 
   // Daily Review Modal State
   const [showDailyReview, setShowDailyReview] = useState<boolean>(false);
@@ -281,7 +273,7 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
   // ---------------------------------------------------------------------------
   // Procedural Customer Reviews Generator
   // ---------------------------------------------------------------------------
-  const generateCustomerReview = (stars: number, served: number, burned: number) => {
+  const generateCustomerReview = (stars: number, _served?: number, _burned?: number) => {
     if (stars >= 4.5) {
       const reviews = [
         '“Gordon Ramsay wept tears of pure joy. The patty was grilled to divine perfection!” ⭐⭐⭐⭐⭐',
@@ -637,7 +629,6 @@ export function PixelKitchenRushEngine({ gameId, gameTitle, onScoreSubmitted }: 
           state.stat.totalTips += matched.tip;
           setOrdersServed((s) => s + 1);
           setTotalTipsEarned((t) => t + matched.tip);
-          setMyScore((s) => s + matched.pts + matched.tip);
           state.o.splice(matchedIdx, 1);
           localHoldingRef.current = null;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 

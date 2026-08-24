@@ -1,32 +1,14 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import {
-  Play,
-  RotateCcw,
   Volume2,
   VolumeX,
-  Flame,
-  Sparkles,
-  Trophy,
-  Users,
-  Award,
-  ShieldAlert,
   Maximize2,
   Minimize2,
   Copy,
   ExternalLink,
-  Zap,
-  Lock,
-  Activity,
-  AlertTriangle,
-  Radio,
-  Power,
-  Sliders,
-  Terminal,
   Moon,
-  CheckCircle2,
-  XCircle,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
@@ -251,7 +233,6 @@ function createInitialState(): CircuitGameState {
 // ---------------------------------------------------------------------------
 export function SabotageCircuitEngine({
   gameId,
-  gameTitle,
   onScoreSubmitted,
 }: SabotageCircuitProps) {
   // Container & UI

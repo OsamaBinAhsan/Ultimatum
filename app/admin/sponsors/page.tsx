@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Megaphone,
@@ -11,7 +11,6 @@ import {
   CheckCircle,
   Eye,
   MousePointer,
-  Sparkles,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Sponsor, AdSlotPosition } from '@/lib/types';

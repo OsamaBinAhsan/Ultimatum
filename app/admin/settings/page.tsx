@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   Megaphone,
-  Sparkles,
   Save,
   CheckCircle,
   AlertOctagon,
-  ShieldCheck,
   DollarSign,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';

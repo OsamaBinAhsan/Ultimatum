@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Play,
   RotateCcw,
@@ -8,23 +8,9 @@ import {
   VolumeX,
   Maximize2,
   Minimize2,
-  Shield,
-  Flame,
   Sparkles,
   Trophy,
-  Zap,
-  AlertTriangle,
   Pause,
-  Target,
-  Crosshair,
-  Gauge,
-  Clock,
-  Magnet,
-  Activity,
-  Layers,
-  Award,
-  Thermometer,
-  Snowflake,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
@@ -43,12 +29,10 @@ interface NeonAsteroidBlitzProps {
 class FastPool<T extends { active: boolean }> {
   public pool: T[];
   public size: number;
-  private createItem: () => T;
   private resetItem: (item: T) => void;
 
   constructor(size: number, createItem: () => T, resetItem: (item: T) => void) {
     this.size = size;
-    this.createItem = createItem;
     this.resetItem = resetItem;
     this.pool = Array.from({ length: size }, () => createItem());
   }
@@ -1727,7 +1711,6 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
 
       if (boss.type === 'singularity_titan') {
         // Singularity Black Hole Warp Event Horizon
-        const rot = now * 0.004;
         ctx.beginPath();
         ctx.arc(0, 0, boss.radius + 15, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(168, 85, 247, 0.5)';

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { queryMySQL } from '@/lib/db/mysql';
 import { platformStore } from '@/lib/data/store';
 
@@ -67,48 +66,7 @@ export async function POST(request: Request) {
       console.warn('MySQL execution skipped or unconfigured:', dbErr);
     }
 
-    // 2. Supabase connection fallback
-    if (isSupabaseConfigured()) {
-      const { data: existing } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', cleanEmail)
-        .single();
-
-      if (existing) {
-        return NextResponse.json(
-          { success: false, error: 'An account with this email already exists' },
-          { status: 400 }
-        );
-      }
-
-      const newProfile = {
-        id: userId,
-        email: cleanEmail,
-        password_hash: passwordHashWithSalt,
-        username: cleanUsername,
-        avatar_url: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80`,
-        role,
-        points: 250,
-        daily_streak: 1,
-        badges: ['New Explorer'],
-        created_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase.from('profiles').insert([newProfile]).select().single();
-      if (error) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-      }
-
-      platformStore.login(cleanEmail, role as 'admin' | 'user');
-      return NextResponse.json({
-        success: true,
-        message: 'Account created successfully on database!',
-        user: data,
-      });
-    }
-
-    // 3. Local/Fallback session handler
+    // 2. Local/Fallback session handler
     const user = platformStore.login(cleanEmail, role as 'admin' | 'user');
     return NextResponse.json({
       success: true,

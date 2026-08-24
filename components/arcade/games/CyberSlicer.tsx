@@ -1,20 +1,15 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Play,
   RotateCcw,
   Volume2,
   VolumeX,
-  Flame,
   Sparkles,
   Trophy,
-  Zap,
-  ShieldAlert,
-  Clock,
   Share2,
   Check,
-  Award,
   Maximize2,
   Minimize2,
   Pause,

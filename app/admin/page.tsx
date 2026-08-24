@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   DollarSign,
@@ -12,12 +12,10 @@ import {
   Trophy,
   Megaphone,
   Sparkles,
-  ArrowRight,
   FilePlus,
   Plus,
   RotateCcw,
   CheckCircle,
-  AlertTriangle,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import confetti from 'canvas-confetti';

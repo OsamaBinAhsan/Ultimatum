@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { platformStore } from '@/lib/data/store';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { queryMySQL, getMySQLPool } from '@/lib/db/mysql';
 import { LeaderboardEntry } from '@/lib/types';
 
@@ -63,32 +62,7 @@ export async function GET(request: Request) {
     console.warn('MySQL leaderboard fetch skipped:', dbErr);
   }
 
-  // 2. Supabase fallback
-  if (isSupabaseConfigured()) {
-    let query = supabase
-      .from('leaderboards')
-      .select('*, profile:profiles(username, avatar_url, badges)')
-      .order('score', { ascending: false });
-    if (gameId) {
-      query = query.eq('game_id', gameId);
-    }
-    const { data, error } = await query;
-    if (!error && data && data.length > 0) {
-      const formatted: LeaderboardEntry[] = data.map((item: any, idx: number) => ({
-        id: item.id,
-        user_id: item.user_id,
-        game_id: item.game_id,
-        score: item.score,
-        player_name: item.profile?.username || 'Player',
-        avatar_url: item.profile?.avatar_url,
-        created_at: item.created_at,
-        rank: idx + 1,
-      }));
-      return NextResponse.json({ success: true, count: formatted.length, data: formatted, source: 'supabase' });
-    }
-  }
-
-  // 3. In-Memory / Platform Store fallback
+  // 2. In-Memory / Platform Store fallback
   const list = platformStore.getLeaderboard(gameId || undefined);
   return NextResponse.json({ success: true, count: list.length, data: list, source: 'store' });
 }
@@ -158,26 +132,7 @@ export async function POST(request: Request) {
       console.warn('MySQL score insert skipped:', dbErr);
     }
 
-    // 2. Supabase fallback
-    if (isSupabaseConfigured()) {
-      if (targetUserId) {
-        const { data, error } = await supabase.from('leaderboards').insert([
-          {
-            user_id: targetUserId,
-            game_id,
-            score,
-            week_timestamp: new Date().toISOString(),
-          },
-        ]).select().single();
-
-        if (!error && data) {
-          platformStore.submitScore(game_id, score);
-          return NextResponse.json({ success: true, data, source: 'supabase' });
-        }
-      }
-    }
-
-    // 3. In-Memory / Platform Store fallback
+    // 2. In-Memory / Platform Store fallback
     const entry = platformStore.submitScore(game_id, score);
     return NextResponse.json({ success: true, data: entry, source: 'store' });
   } catch (err: unknown) {
@@ -204,12 +159,7 @@ export async function DELETE(request: Request) {
       console.warn('MySQL delete score error:', dbErr);
     }
 
-    // 2. Supabase Delete
-    if (isSupabaseConfigured()) {
-      await supabase.from('leaderboards').delete().eq('id', scoreId);
-    }
-
-    // 3. Store Delete
+    // 2. Store Delete
     platformStore.deleteLeaderboardScore(scoreId);
     return NextResponse.json({ success: true, message: 'Score deleted' });
   } catch (err: unknown) {

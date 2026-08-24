@@ -1,13 +1,13 @@
 # Ultimatum — Lifestyle, Michelin Kitchen & Retro Arcade Gaming Platform
 
-A modern, high-traffic, monetizable web platform engineered with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **Supabase (PostgreSQL, RLS, RPC Functions)**.
+A modern, high-traffic, monetizable web platform engineered with **Next.js (App Router)**, **TypeScript**, **Tailwind CSS**, and **MySQL (HostGator / cPanel / MariaDB)**.
 
 ---
 
 ## 🌟 Key Platform Features
 
 ### 1. 🕹️ The Arcade (`/games` & `/games/[slug]`)
-* **Interactive HTML5 Canvas Arcade Engine**: Playable retro space shooter ("Neon Asteroid Blitz") featuring particle systems, synthesized sound FX (Web Audio API), powerups, score multipliers, and full-screen support.
+* **Interactive HTML5 Canvas Arcade Engine**: Playable retro arcade games featuring particle systems, synthesized sound FX (Web Audio API), powerups, score multipliers, and full-screen support.
 * **Live Weekly Leaderboards**: Real-time score submission with rank medals (🥇 Gold, 🥈 Silver, 🥉 Bronze) and user engagement XP rewards.
 * **Rewarded Video Ad Units**: Dedicated 5-second simulated video ad stream allowing players to revive their spaceship with an extra life and double XP.
 
@@ -26,15 +26,16 @@ A modern, high-traffic, monetizable web platform engineered with **Next.js (App 
 * **Pros & Cons Matrix**: Clean comparison cards with visual indicators.
 * **Affiliate Monetization Callouts**: Clear FTC disclosure with high-converting CTA buttons.
 
-### 4. 🚀 Dynamic Custom Sub-Pages & Routes (`/pages/[slug]`)
-* **Admin Page Creator**: Admins can spawn infinite custom sub-pages at runtime with custom URLs, rich markdown/HTML content, SEO meta tags, and configurable ad slot visibility.
+### 4. 📅 Post Scheduler & Event Manager (`/admin/scheduler`)
+* **Future Post Scheduling**: Schedule recipes, hardware teardowns, and blogs to auto-publish at future release dates.
+* **Automated Publisher Worker**: Background worker (`/api/scheduler/publish`) and audit logger (`scheduler_log`).
 
 ### 5. 🛡️ Super Admin CMS Panel (`/admin`)
 * **Dark-Mode Sidebar Shell**: Analytics overview, content hubs, moderation tables.
-* **Recipe CMS**: Dynamic ingredient row builder (`+ Add Ingredient`) and step editor.
+* **Recipe CMS**: Dynamic ingredient row builder (`+ Add Ingredient`) and step editor with release scheduler panel.
 * **Review CMS**: Hardware vs Food selector, pros/cons tag builder, spec key-value matrix.
 * **Game Vault**: Deploy canvas games, toggle sponsored partner flags.
-* **Leaderboard Moderation & Anti-Cheat**: Inspect submitted scores, delete fraudulent entries with one click, and trigger immediate Weekly Leaderboard Resets.
+* **Leaderboard Moderation**: Inspect submitted scores, delete fraudulent entries with one click, and trigger immediate Weekly Leaderboard Resets.
 * **User Governance**: Promote Super Admins, adjust points, award custom badges, and ban abusive accounts.
 * **Sponsor Setup & Banner Tracking**: Direct ad campaigns with impression and CTR telemetry.
 * **Master Site Settings**: Master ad switches to toggle individual ad zones (header billboard, sidebar, in-content, sticky footer, rewarded video ads) ON or OFF.
@@ -47,9 +48,9 @@ A modern, high-traffic, monetizable web platform engineered with **Next.js (App 
 
 ## 🛠️ Tech Stack & Architecture
 
-* **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Lucide React, Canvas Confetti.
-* **Backend & Database**: Supabase PostgreSQL, Row Level Security (RLS), Stored Procedures (`reset_weekly_leaderboards`, `record_game_score`, `track_sponsor_impression`), Isomorphic client (`lib/supabase/client.ts`).
-* **Deployment Target**: Vercel.
+* **Frontend**: Next.js 16 (App Router), React 18, TypeScript, Tailwind CSS, Lucide React, Canvas Confetti.
+* **Backend & Database**: Hosted MySQL (`mysql2/promise`), custom Node.js Socket.io server (`server.js`).
+* **Storage / Fallback**: Canonical MySQL database (`mysql-master-schema.sql` and `sql/add-upgrades.sql`) with in-memory / LocalStorage offline store (`lib/data/store.ts`).
 
 ---
 
@@ -61,19 +62,22 @@ npm install
 ```
 
 ### 2. Configure Database (Optional)
-Run the migration script in `supabase/schema.sql` inside your Supabase SQL Editor.
+Run the migration scripts in `mysql-master-schema.sql` and `sql/add-upgrades.sql` inside your phpMyAdmin / MySQL console.
 Create a `.env.local` file based on `.env.example`:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=your_db_user
+MYSQL_PASSWORD=your_db_password
+MYSQL_DATABASE=your_database_name
+SCHEDULER_SECRET=your_scheduler_secret
 ```
-
-*Note: The platform features a full in-memory and LocalStorage fallback store (`lib/data/store.ts`), meaning all pages, games, and admin CMS actions work out of the box with zero external dependencies.*
 
 ### 3. Run Development Server
 ```bash
-npm run dev
+node server.js
 ```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### 4. Access Admin CMS

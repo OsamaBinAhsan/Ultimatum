@@ -1,15 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Trophy,
   Trash2,
   RotateCcw,
   ShieldAlert,
-  AlertTriangle,
   CheckCircle,
   Filter,
-  Users,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { LeaderboardEntry, Game } from '@/lib/types';

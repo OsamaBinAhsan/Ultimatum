@@ -1,18 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-  Newspaper,
-  Clock,
   ArrowLeft,
   Share2,
   Sparkles,
   Zap,
   ZoomIn,
-  ShieldCheck,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Article } from '@/lib/types';

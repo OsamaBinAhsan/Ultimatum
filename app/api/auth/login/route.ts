@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { queryMySQL } from '@/lib/db/mysql';
 import { platformStore } from '@/lib/data/store';
 
@@ -58,40 +57,7 @@ export async function POST(request: Request) {
       console.warn('MySQL login check skipped:', dbErr);
     }
 
-    // 2. Supabase connection fallback
-    if (isSupabaseConfigured()) {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`email.eq.${cleanEmail},username.eq.${cleanEmail}`)
-        .single();
-
-      if (error || !profile) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid email or password' },
-          { status: 401 }
-        );
-      }
-
-      if (profile.password_hash) {
-        const isValid = verifyPassword(password, profile.password_hash);
-        if (!isValid) {
-          return NextResponse.json(
-            { success: false, error: 'Invalid email or password' },
-            { status: 401 }
-          );
-        }
-      }
-
-      platformStore.login(cleanEmail, profile.role);
-      return NextResponse.json({
-        success: true,
-        message: 'Signed in successfully!',
-        user: profile,
-      });
-    }
-
-    // 3. Local/Fallback session handler
+    // 2. Local/Fallback session handler
     const user = platformStore.login(cleanEmail, cleanEmail.includes('admin') ? 'admin' : 'user');
     return NextResponse.json({
       success: true,

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Sparkles, Gamepad2, Utensils, Cpu, ShieldCheck, Newspaper, Heart } from 'lucide-react';
+import { Sparkles, Gamepad2, Utensils, Cpu, ShieldCheck, Newspaper } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { CustomPage } from '@/lib/types';
 import { AdSlot } from '@/components/monetization/AdSlot';

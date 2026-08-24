@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Coins, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, Coins } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import confetti from 'canvas-confetti';
 
@@ -10,7 +10,7 @@ interface ReadingMeritsTrackerProps {
   contentType?: 'article' | 'recipe' | 'review';
 }
 
-export function ReadingMeritsTracker({ contentSlug, contentType = 'article' }: ReadingMeritsTrackerProps) {
+export function ReadingMeritsTracker({ contentSlug }: ReadingMeritsTrackerProps) {
   const [hasAwarded, setHasAwarded] = useState(false);
   const [showToast, setShowToast] = useState(false);
 

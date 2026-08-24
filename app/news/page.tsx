@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Newspaper, Flame, Clock, ArrowRight, Search, Sparkles, Zap } from 'lucide-react';
+import { Clock, ArrowRight, Search, Zap } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Article } from '@/lib/types';
 import { AdSlot } from '@/components/monetization/AdSlot';

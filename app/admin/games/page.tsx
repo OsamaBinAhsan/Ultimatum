@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Gamepad2, Plus, Trash2, Edit3, Eye, Sparkles, Flame, CheckCircle } from 'lucide-react';
+import { Gamepad2, Plus, Trash2, Edit3, Eye, CheckCircle } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Game, GameCategory } from '@/lib/types';
 import confetti from 'canvas-confetti';

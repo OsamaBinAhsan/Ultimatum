@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Coins,
   ShieldAlert,
-  Flame,
   User,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';

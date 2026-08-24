@@ -191,7 +191,7 @@ class PlatformStore {
     this.pendingScore = { gameId, score };
   }
 
-  awardReadingXP(slug: string): number {
+  awardReadingXP(_slug?: string): number {
     if (!this.currentUser) return 0;
     const bonus = 25;
     this.currentUser.points += bonus;
@@ -426,7 +426,7 @@ class PlatformStore {
 
     this.saveToLocalStorage();
 
-    // Asynchronously persist to backend MySQL / Supabase Database
+    // Asynchronously persist to backend MySQL Database
     if (typeof window !== 'undefined') {
       fetch('/api/leaderboards', {
         method: 'POST',

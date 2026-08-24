@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Sparkles, Trophy, CheckCircle, Play, X } from 'lucide-react';
+import { Sparkles, Trophy, CheckCircle, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface RewardedAdModalProps {
@@ -19,24 +19,20 @@ export function RewardedAdModal({
   rewardDescription = 'Revive with 1 Extra Life + 500 Bonus XP',
 }: RewardedAdModalProps) {
   const [countdown, setCountdown] = useState(5);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setCountdown(5);
-      setIsPlaying(false);
       setIsCompleted(false);
       return;
     }
 
-    setIsPlaying(true);
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
           setIsCompleted(true);
-          setIsPlaying(false);
           // Trigger celebratory confetti
           confetti({
             particleCount: 80,

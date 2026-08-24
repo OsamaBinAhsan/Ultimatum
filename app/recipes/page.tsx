@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
   Utensils,
   Clock,
-  Flame,
   Star,
   Search,
   ChefHat,
-  Sparkles,
-  Filter,
   Check,
   X,
   Layers,

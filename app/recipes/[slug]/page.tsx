@@ -1,25 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
   Utensils,
-  Clock,
-  Flame,
   Star,
   ChefHat,
   Share2,
   Printer,
-  Bookmark,
   CheckCircle2,
   ArrowDownCircle,
   Plus,
   Minus,
   ArrowLeft,
   Sparkles,
-  ShieldCheck,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Recipe } from '@/lib/types';

@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Cpu, Star, ExternalLink, ShieldCheck, Sparkles, Filter, Check, X, ArrowRight } from 'lucide-react';
+import { Cpu, Star, ShieldCheck, ArrowRight } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { Review, ReviewCategory } from '@/lib/types';
+import { Review } from '@/lib/types';
 import { AdSlot } from '@/components/monetization/AdSlot';
 
 export default function ReviewsHubPage() {

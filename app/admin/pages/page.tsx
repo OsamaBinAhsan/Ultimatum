@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   FilePlus,
   Plus,
   Trash2,
   Edit3,
-  ExternalLink,
   CheckCircle,
-  Sparkles,
   Eye,
-  Globe,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { CustomPage } from '@/lib/types';

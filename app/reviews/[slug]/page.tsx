@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { notFound, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -13,7 +13,6 @@ import {
   X,
   ArrowLeft,
   Share2,
-  Sparkles,
   Award,
   Zap,
   ShoppingBag,

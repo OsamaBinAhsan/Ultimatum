@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
 import { queryMySQL } from '@/lib/db/mysql';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -33,25 +32,7 @@ export async function GET(request: Request) {
     // MySQL query fallback
   }
 
-  // 2. Check Supabase
-  if (isSupabaseConfigured()) {
-    if (slug) {
-      const { data, error } = await supabase.from('reviews').select('*').eq('slug', slug).single();
-      if (!error && data) return NextResponse.json({ success: true, data });
-    } else if (status) {
-      const { data, error } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('status', status)
-        .order('created_at', { ascending: false });
-      if (!error && data) return NextResponse.json({ success: true, count: data.length, data });
-    } else {
-      const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
-      if (!error && data) return NextResponse.json({ success: true, count: data.length, data });
-    }
-  }
-
-  // 3. Fallback to PlatformStore
+  // 2. Fallback to PlatformStore
   if (slug) {
     const review = platformStore.getReviewBySlug(slug);
     if (!review) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
@@ -111,14 +92,6 @@ export async function POST(request: Request) {
       }
     } catch (dbErr) {
       console.warn('MySQL save review skipped:', dbErr);
-    }
-
-    if (isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('reviews').upsert([body]).select().single();
-      if (!error && data) {
-        platformStore.saveReview(data);
-        return NextResponse.json({ success: true, data });
-      }
     }
 
     const saved = platformStore.saveReview(body);

@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Gamepad2, Trophy, Flame, Play, Sparkles, Filter } from 'lucide-react';
+import { Flame, Play, Sparkles, Filter } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { Game, GameCategory } from '@/lib/types';
+import { Game } from '@/lib/types';
 import { AdSlot } from '@/components/monetization/AdSlot';
 
 export default function GamesHubPage() {

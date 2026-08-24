@@ -1,6 +1,5 @@
-import React from 'react';
 import Image from 'next/image';
-import { Sparkles, ShieldCheck, Flame, Cpu, Utensils, Gamepad2, Award } from 'lucide-react';
+import { Sparkles, Cpu, Utensils, Gamepad2 } from 'lucide-react';
 
 export default function AboutPage() {
   const team = [

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -286,13 +286,6 @@ interface FloatingEmote {
   maxLife: number;
 }
 
-interface CursorData {
-  x: number;
-  y: number;
-  tool: ToolType;
-  color: string;
-}
-
 // ---------------------------------------------------------------------------
 // Pathfinding BFS (Authoritative Maze Solver)
 // ---------------------------------------------------------------------------
@@ -337,7 +330,6 @@ function validatePathExists(
 // ---------------------------------------------------------------------------
 export function TheArchitectAndTheRatsEngine({
   gameId,
-  gameTitle,
   onScoreSubmitted,
 }: TheArchitectAndTheRatsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -351,12 +343,12 @@ export function TheArchitectAndTheRatsEngine({
 
   const [playMode, setPlayMode] = useState<'solo' | 'multi'>('solo');
   const [soloRoleChoice, setSoloRoleChoice] = useState<PlayerRole>('Rat');
-  const [selectedGameMode, setSelectedGameMode] = useState<'standard' | 'simultaneous'>('standard');
+  const [selectedGameMode] = useState<'standard' | 'simultaneous'>('standard');
 
   const [phase, setPhase] = useState<GamePhase>('LOBBY');
   const [myPeerId, setMyPeerId] = useState('p1-local');
   const [myRole, setMyRole] = useState<PlayerRole>('Rat');
-  const [myPlayerColor, setMyPlayerColor] = useState(RAT_COLORS[0]);
+  const [myPlayerColor] = useState(RAT_COLORS[0]);
   const [players, setPlayers] = useState<PlayerInfo[]>([
     { id: 'p1-local', name: 'Player 1 (You)', role: 'Rat', color: RAT_COLORS[0], wins: 0 },
   ]);

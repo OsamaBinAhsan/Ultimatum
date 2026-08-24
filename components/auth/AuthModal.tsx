@@ -14,12 +14,10 @@ import {
   Award,
   LogOut,
   Flame,
-  CheckCircle,
   ArrowRight,
   ShieldAlert,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { Profile } from '@/lib/types';
 import confetti from 'canvas-confetti';
 
@@ -108,9 +106,6 @@ export function AuthModal({
   };
 
   const handleLogout = async () => {
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut();
-    }
     platformStore.logout();
     setCurrentUser(null);
     setTab('signin');

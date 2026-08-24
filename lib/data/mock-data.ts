@@ -1,4 +1,4 @@
-import { Game, Recipe, Review, Sponsor, CustomPage, SiteSettings, LeaderboardEntry, Profile, Article, Bookmark } from '@/lib/types';
+import { Game, Recipe, Review, Sponsor, CustomPage, SiteSettings, LeaderboardEntry, Profile, Article } from '@/lib/types';
 
 export const INITIAL_PROFILES: Profile[] = [
   {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -10,9 +10,6 @@ import {
   Edit3,
   CheckCircle,
   Eye,
-  Clock,
-  Sparkles,
-  ChevronDown,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Recipe, RecipeIngredient, RecipeInstruction, PostStatus } from '@/lib/types';

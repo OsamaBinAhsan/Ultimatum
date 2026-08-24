@@ -1,18 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Users,
-  Shield,
-  Coins,
-  Award,
-  Trash2,
-  Ban,
-  Plus,
-  Minus,
   CheckCircle,
-  Sparkles,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Profile, UserRole } from '@/lib/types';
@@ -21,7 +13,6 @@ import confetti from 'canvas-confetti';
 export default function AdminUserGovernance() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [selectedBadge, setSelectedBadge] = useState<string>('Grand Champion');
 
   useEffect(() => {
     setProfiles(platformStore.getProfiles());

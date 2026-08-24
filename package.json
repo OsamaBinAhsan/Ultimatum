@@ -10,17 +10,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.48.1",
     "canvas-confetti": "^1.9.4",
-    "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "mysql2": "^3.23.3",
     "next": "^16.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^2.6.0"
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",

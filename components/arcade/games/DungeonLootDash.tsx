@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, RotateCcw, Volume2, VolumeX, Flame, Sparkles, Trophy, Shield, Zap, Sword } from 'lucide-react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { Play, RotateCcw, Volume2, VolumeX, Sparkles, Trophy, Zap, Sword } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
 import { AuthModal } from '@/components/auth/AuthModal';
@@ -125,7 +125,6 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
   const [lives, setLives] = useState(3);
   const [hasShield, setHasShield] = useState(false);
   const [hasMagnet, setHasMagnet] = useState(false);
-  const [magnetTimer, setMagnetTimer] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showRewardedAd, setShowRewardedAd] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -423,7 +422,6 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
             addFloatText('+500 DIAMOND GEM', it.x, it.y - 15, '#38bdf8');
           } else if (it.type === 'magnet') {
             setHasMagnet(true);
-            setMagnetTimer(8);
             addFloatText('GOLD MAGNET ACTIVATED', it.x, it.y - 15, '#ec4899');
           } else {
             setScore((s) => s + 60);
