@@ -19,12 +19,14 @@ import {
   Sparkles,
   Newspaper,
   ShieldAlert,
+  CalendarClock,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Profile } from '@/lib/types';
 
 const ADMIN_NAV = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/scheduler', label: 'Post Scheduler', icon: CalendarClock },
   { href: '/admin/pages', label: 'Custom Sub-Pages', icon: FileCode2 },
   { href: '/admin/recipes', label: 'Kitchen Recipes', icon: UtensilsCrossed },
   { href: '/admin/reviews', label: 'Hardware Lab', icon: FlaskConical },

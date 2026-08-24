@@ -114,11 +114,27 @@ export function Navbar() {
               <span>Admin CMS</span>
             </Link>
 
+            {/* My Account Dashboard */}
+            {user && (
+              <Link
+                href="/account"
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-sm ${
+                  pathname === '/account'
+                    ? 'border-cyan-500/60 bg-cyan-950/40 text-cyan-300'
+                    : 'border-zinc-800 bg-zinc-900/80 text-zinc-300 hover:border-zinc-700 hover:text-white'
+                }`}
+              >
+                <User className="w-3.5 h-3.5 text-cyan-400" />
+                <span>My Account</span>
+              </Link>
+            )}
+
             {/* Auth / Profile Trigger Button */}
             {user ? (
               <button
                 onClick={() => setAuthModalOpen(true)}
                 className="flex items-center gap-2 rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-1.5 hover:border-zinc-700 transition-all"
+                title="Switch User / Sign Out"
               >
                 <div className="relative h-6 w-6 overflow-hidden rounded-full border border-zinc-700 bg-zinc-800">
                   <Image src={user.avatar_url} alt={user.username} fill className="object-cover" />
@@ -191,6 +207,27 @@ export function Navbar() {
             </div>
 
             <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
+              {user ? (
+                <Link
+                  href="/account"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-xs font-bold text-cyan-400 flex items-center gap-1.5"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>My Account</span>
+                </Link>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setAuthModalOpen(true);
+                  }}
+                  className="text-xs font-bold text-cyan-400 flex items-center gap-1.5"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+              )}
               <Link
                 href="/admin"
                 onClick={() => setMobileMenuOpen(false)}
@@ -198,13 +235,6 @@ export function Navbar() {
               >
                 <ShieldAlert className="w-3.5 h-3.5" />
                 <span>Admin Console</span>
-              </Link>
-              <Link
-                href="/media-kit"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-xs font-semibold text-cyan-400"
-              >
-                Media Kit →
               </Link>
             </div>
           </div>

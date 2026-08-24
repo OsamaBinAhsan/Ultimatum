@@ -38,6 +38,16 @@ module.exports = {
       fontFamily: {
         mono: ['var(--font-mono)', 'monospace'],
       },
+      keyframes: {
+        loadbar: {
+          '0%': { transform: 'translateX(-100%)', width: '30%' },
+          '50%': { transform: 'translateX(50%)', width: '60%' },
+          '100%': { transform: 'translateX(200%)', width: '30%' },
+        },
+      },
+      animation: {
+        loadbar: 'loadbar 1.4s ease-in-out infinite alternate',
+      },
     },
   },
   plugins: [],

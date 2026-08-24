@@ -1,12 +1,74 @@
 'use client';
 
 import React from 'react';
-import { NeonAsteroidBlitzEngine } from './games/NeonAsteroidBlitz';
-import { CyberSlicerEngine } from './games/CyberSlicer';
-import { PixelKitchenRushEngine } from './games/PixelKitchenRush';
-import { DungeonLootDashEngine } from './games/DungeonLootDash';
-import { SabotageCircuitEngine } from './games/SabotageCircuit';
-import { TheArchitectAndTheRatsEngine } from './games/TheArchitectAndTheRats';
+import dynamic from 'next/dynamic';
+import { GameLoadingFallback } from './GameLoadingFallback';
+
+const NeonAsteroidBlitzEngine = dynamic(
+  () =>
+    import('./games/NeonAsteroidBlitz').then((mod) => ({
+      default: mod.NeonAsteroidBlitzEngine,
+    })),
+  {
+    ssr: false,
+    loading: () => <GameLoadingFallback name="Neon Asteroid Blitz" />,
+  }
+);
+
+const CyberSlicerEngine = dynamic(
+  () =>
+    import('./games/CyberSlicer').then((mod) => ({
+      default: mod.CyberSlicerEngine,
+    })),
+  {
+    ssr: false,
+    loading: () => <GameLoadingFallback name="Cyber Slicer 2099" />,
+  }
+);
+
+const PixelKitchenRushEngine = dynamic(
+  () =>
+    import('./games/PixelKitchenRush').then((mod) => ({
+      default: mod.PixelKitchenRushEngine,
+    })),
+  {
+    ssr: false,
+    loading: () => <GameLoadingFallback name="Pixel Kitchen Rush" />,
+  }
+);
+
+const DungeonLootDashEngine = dynamic(
+  () =>
+    import('./games/DungeonLootDash').then((mod) => ({
+      default: mod.DungeonLootDashEngine,
+    })),
+  {
+    ssr: false,
+    loading: () => <GameLoadingFallback name="Dungeon Loot Dash" />,
+  }
+);
+
+const SabotageCircuitEngine = dynamic(
+  () =>
+    import('./games/SabotageCircuit').then((mod) => ({
+      default: mod.SabotageCircuitEngine,
+    })),
+  {
+    ssr: false,
+    loading: () => <GameLoadingFallback name="Sabotage Circuit" />,
+  }
+);
+
+const TheArchitectAndTheRatsEngine = dynamic(
+  () =>
+    import('./games/TheArchitectAndTheRats').then((mod) => ({
+      default: mod.TheArchitectAndTheRatsEngine,
+    })),
+  {
+    ssr: false,
+    loading: () => <GameLoadingFallback name="The Architect & The Rats" />,
+  }
+);
 
 interface CanvasGameProps {
   gameId: string;
@@ -24,25 +86,61 @@ export function CanvasGame({ gameId, gameTitle, gameSlug, onScoreSubmitted }: Ca
     normalized.includes('rats') ||
     normalized.includes('the-architect-and-the-rats')
   ) {
-    return <TheArchitectAndTheRatsEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+    return (
+      <TheArchitectAndTheRatsEngine
+        gameId={gameId}
+        gameTitle={gameTitle}
+        onScoreSubmitted={onScoreSubmitted}
+      />
+    );
   }
 
   if (normalized.includes('sabotage') || normalized.includes('circuit')) {
-    return <SabotageCircuitEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+    return (
+      <SabotageCircuitEngine
+        gameId={gameId}
+        gameTitle={gameTitle}
+        onScoreSubmitted={onScoreSubmitted}
+      />
+    );
   }
 
   if (normalized.includes('slicer') || normalized.includes('cyber-slicer')) {
-    return <CyberSlicerEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+    return (
+      <CyberSlicerEngine
+        gameId={gameId}
+        gameTitle={gameTitle}
+        onScoreSubmitted={onScoreSubmitted}
+      />
+    );
   }
 
   if (normalized.includes('kitchen') || normalized.includes('pixel-kitchen')) {
-    return <PixelKitchenRushEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+    return (
+      <PixelKitchenRushEngine
+        gameId={gameId}
+        gameTitle={gameTitle}
+        onScoreSubmitted={onScoreSubmitted}
+      />
+    );
   }
 
   if (normalized.includes('dungeon') || normalized.includes('loot-dash')) {
-    return <DungeonLootDashEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+    return (
+      <DungeonLootDashEngine
+        gameId={gameId}
+        gameTitle={gameTitle}
+        onScoreSubmitted={onScoreSubmitted}
+      />
+    );
   }
 
   // Default to Neon Asteroid Blitz
-  return <NeonAsteroidBlitzEngine gameId={gameId} gameTitle={gameTitle} onScoreSubmitted={onScoreSubmitted} />;
+  return (
+    <NeonAsteroidBlitzEngine
+      gameId={gameId}
+      gameTitle={gameTitle}
+      onScoreSubmitted={onScoreSubmitted}
+    />
+  );
 }

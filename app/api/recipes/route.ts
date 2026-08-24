@@ -1,33 +1,116 @@
 import { NextResponse } from 'next/server';
 import { platformStore } from '@/lib/data/store';
+import { queryMySQL } from '@/lib/db/mysql';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const slug = searchParams.get('slug');
+  const status = searchParams.get('status');
 
+  // 1. Check MySQL
+  try {
+    if (slug) {
+      const rows = (await queryMySQL('SELECT * FROM `recipes` WHERE `slug` = ? LIMIT 1', [slug])) as any[];
+      if (rows && rows.length > 0) {
+        return NextResponse.json({ success: true, data: rows[0] });
+      }
+    } else if (status) {
+      const rows = (await queryMySQL(
+        'SELECT * FROM `recipes` WHERE `status` = ? ORDER BY `created_at` DESC',
+        [status]
+      )) as any[];
+      if (rows) {
+        return NextResponse.json({ success: true, count: rows.length, data: rows });
+      }
+    } else {
+      const rows = (await queryMySQL('SELECT * FROM `recipes` ORDER BY `created_at` DESC')) as any[];
+      if (rows && rows.length > 0) {
+        return NextResponse.json({ success: true, count: rows.length, data: rows });
+      }
+    }
+  } catch (e) {
+    // MySQL query fallback
+  }
+
+  // 2. Check Supabase
   if (isSupabaseConfigured()) {
     if (slug) {
       const { data, error } = await supabase.from('recipes').select('*').eq('slug', slug).single();
       if (!error && data) return NextResponse.json({ success: true, data });
+    } else if (status) {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('status', status)
+        .order('created_at', { ascending: false });
+      if (!error && data) return NextResponse.json({ success: true, count: data.length, data });
     } else {
       const { data, error } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
       if (!error && data) return NextResponse.json({ success: true, count: data.length, data });
     }
   }
 
+  // 3. Fallback to PlatformStore
   if (slug) {
     const recipe = platformStore.getRecipeBySlug(slug);
     if (!recipe) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true, data: recipe });
   }
-  const recipes = platformStore.getRecipes();
+
+  let recipes = platformStore.getRecipes();
+  if (status) {
+    recipes = recipes.filter((r) => (r.status || 'published') === status);
+  }
   return NextResponse.json({ success: true, count: recipes.length, data: recipes });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // MySQL upsert attempt
+    try {
+      if (body.id && body.slug && body.title) {
+        await queryMySQL(
+          `INSERT INTO \`recipes\` (\`id\`, \`slug\`, \`title\`, \`description\`, \`hero_image_url\`, \`prep_time\`, \`cook_time\`, \`servings\`, \`calories\`, \`category\`, \`ingredients\`, \`instructions\`, \`author\`, \`status\`, \`scheduled_for\`)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             \`title\` = VALUES(\`title\`),
+             \`description\` = VALUES(\`description\`),
+             \`hero_image_url\` = VALUES(\`hero_image_url\`),
+             \`prep_time\` = VALUES(\`prep_time\`),
+             \`cook_time\` = VALUES(\`cook_time\`),
+             \`servings\` = VALUES(\`servings\`),
+             \`calories\` = VALUES(\`calories\`),
+             \`category\` = VALUES(\`category\`),
+             \`ingredients\` = VALUES(\`ingredients\`),
+             \`instructions\` = VALUES(\`instructions\`),
+             \`status\` = VALUES(\`status\`),
+             \`scheduled_for\` = VALUES(\`scheduled_for\`)`,
+          [
+            body.id,
+            body.slug,
+            body.title,
+            body.description || '',
+            body.hero_image_url || '',
+            body.prep_time || 15,
+            body.cook_time || 20,
+            body.servings || 4,
+            body.calories || 400,
+            body.category || 'Entree',
+            JSON.stringify(body.ingredients || []),
+            JSON.stringify(body.instructions || []),
+            body.author || 'Chef Marco',
+            body.status || 'published',
+            body.scheduled_for || null,
+          ]
+        );
+      }
+    } catch (dbErr) {
+      console.warn('MySQL save recipe skipped:', dbErr);
+    }
+
     if (isSupabaseConfigured()) {
       const { data, error } = await supabase.from('recipes').upsert([body]).select().single();
       if (!error && data) {

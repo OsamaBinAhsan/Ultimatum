@@ -494,6 +494,30 @@ app.prepare().then(() => {
     });
   });
 
+  // -----------------------------------------------------------------------
+  // Post Scheduler: Auto-publishes due scheduled posts every 15 minutes
+  // -----------------------------------------------------------------------
+  const SCHEDULER_INTERVAL_MS = 15 * 60 * 1000;
+  const SCHEDULER_SECRET = process.env.SCHEDULER_SECRET || '';
+  setTimeout(() => {
+    const runScheduler = async () => {
+      try {
+        const res = await fetch(`http://${hostname}:${port}/api/scheduler/publish`, {
+          method: 'POST',
+          headers: { 'x-scheduler-secret': SCHEDULER_SECRET },
+        });
+        const data = await res.json();
+        if (data.total > 0) {
+          console.log(`[Scheduler] Auto-published ${data.total} item(s):`, data.published);
+        }
+      } catch (e) {
+        // Silently skip if server not fully ready yet
+      }
+    };
+    runScheduler();
+    setInterval(runScheduler, SCHEDULER_INTERVAL_MS);
+  }, 5000);
+
   server.listen(port, () => {
     console.log(`> Pixel Kitchen Rush server live on http://${hostname}:${port}`);
   });

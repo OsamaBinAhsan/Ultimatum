@@ -20,8 +20,10 @@ import {
 import { platformStore } from '@/lib/data/store';
 import { Game, LeaderboardEntry } from '@/lib/types';
 import { CanvasGame } from '@/components/arcade/CanvasGame';
-import { GameJsonLd } from '@/components/seo/JsonLd';
+import { GameJsonLd, BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { AdSlot } from '@/components/monetization/AdSlot';
+import { CommentSection } from '@/components/account/CommentSection';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 export default function SingleGamePage() {
   const params = useParams();
@@ -30,6 +32,7 @@ export default function SingleGamePage() {
   const [game, setGame] = useState<Game | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [copied, setCopied] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
     const foundGame = platformStore.getGameBySlug(slug);
@@ -50,12 +53,28 @@ export default function SingleGamePage() {
 
   if (!game) return null;
 
-  const handleScoreSubmitted = () => {
+  const handleScoreSubmitted = (score?: number) => {
     // Refresh leaderboard locally and sync with API
     setLeaderboard(platformStore.getLeaderboard(game.id));
     platformStore.syncLeaderboardFromApi(game.id).then((synced) => {
       setLeaderboard(synced);
     });
+
+    // Record in user game_stats if logged in
+    const currentUser = platformStore.getCurrentUser();
+    if (currentUser && typeof score === 'number' && score > 0) {
+      fetch('/api/account/game-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          game_id: game.id,
+          game_slug: game.slug,
+          game_title: game.title,
+          score,
+        }),
+      }).catch(() => {});
+    }
   };
 
   const handleShare = () => {
@@ -69,6 +88,13 @@ export default function SingleGamePage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
       <GameJsonLd game={game} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://ultimatum.gg' },
+          { name: 'Arcade Vault', url: 'https://ultimatum.gg/games' },
+          { name: game.title, url: `https://ultimatum.gg/games/${game.slug}` },
+        ]}
+      />
 
       {/* Top Breadcrumb & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
@@ -263,6 +289,16 @@ export default function SingleGamePage() {
           <AdSlot slot="sidebar" label="SIDEBAR HALF-PAGE (300x600 / 300x250)" />
         </div>
       </div>
+
+      {/* Arcade Community Discussion */}
+      <CommentSection
+        contentType="game"
+        contentId={game.id}
+        contentSlug={game.slug}
+        onAuthRequired={() => setAuthModalOpen(true)}
+      />
+
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </div>
   );
 }

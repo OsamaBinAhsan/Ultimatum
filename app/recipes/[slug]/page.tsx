@@ -23,8 +23,11 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Recipe } from '@/lib/types';
-import { RecipeJsonLd } from '@/components/seo/JsonLd';
+import { RecipeJsonLd, BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { AdSlot } from '@/components/monetization/AdSlot';
+import { SaveRecipeButton } from '@/components/account/SaveRecipeButton';
+import { CommentSection } from '@/components/account/CommentSection';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 export default function SingleRecipePage() {
   const params = useParams();
@@ -35,6 +38,7 @@ export default function SingleRecipePage() {
   const [checkedIngredients, setCheckedIngredients] = useState<{ [key: string]: boolean }>({});
   const [completedSteps, setCompletedSteps] = useState<{ [key: number]: boolean }>({});
   const [copied, setCopied] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
     const r = platformStore.getRecipeBySlug(slug);
@@ -90,8 +94,15 @@ export default function SingleRecipePage() {
 
   return (
     <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-      {/* Dynamic JSON-LD Recipe Schema */}
+      {/* Dynamic JSON-LD Recipe Schema & Breadcrumbs */}
       <RecipeJsonLd recipe={recipe} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://ultimatum.gg' },
+          { name: 'Kitchen Vault', url: 'https://ultimatum.gg/recipes' },
+          { name: recipe.title, url: `https://ultimatum.gg/recipes/${recipe.slug}` },
+        ]}
+      />
 
       {/* Top Navigation & Jump to Recipe Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
@@ -104,7 +115,7 @@ export default function SingleRecipePage() {
         </Link>
 
         {/* PROMINENT JUMP TO RECIPE BUTTON */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={scrollToRecipe}
             className="flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-2 text-xs font-black text-zinc-950 shadow-lg shadow-amber-500/20 hover:bg-amber-400 transition-all hover:scale-105"
@@ -112,6 +123,13 @@ export default function SingleRecipePage() {
             <ArrowDownCircle className="w-4 h-4" />
             <span>JUMP TO RECIPE</span>
           </button>
+
+          <SaveRecipeButton
+            recipeId={recipe.id}
+            recipeSlug={recipe.slug}
+            recipeTitle={recipe.title}
+            onAuthRequired={() => setAuthModalOpen(true)}
+          />
 
           <button
             onClick={handlePrint}
@@ -395,7 +413,18 @@ export default function SingleRecipePage() {
             </div>
           </div>
         )}
+
+        {/* COMMUNITY COMMENTS & FEEDBACK */}
+        <CommentSection
+          contentType="recipe"
+          contentId={recipe.id}
+          contentSlug={recipe.slug}
+          onAuthRequired={() => setAuthModalOpen(true)}
+        />
       </section>
+
+      {/* Auth Modal for Guests */}
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </article>
   );
 }

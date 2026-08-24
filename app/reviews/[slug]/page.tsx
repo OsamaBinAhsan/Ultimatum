@@ -21,8 +21,10 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Review } from '@/lib/types';
-import { ReviewJsonLd } from '@/components/seo/JsonLd';
+import { ReviewJsonLd, BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { AdSlot } from '@/components/monetization/AdSlot';
+import { CommentSection } from '@/components/account/CommentSection';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 export default function SingleReviewPage() {
   const params = useParams();
@@ -30,6 +32,7 @@ export default function SingleReviewPage() {
 
   const [review, setReview] = useState<Review | null>(null);
   const [copied, setCopied] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
     const rev = platformStore.getReviewBySlug(slug);
@@ -57,8 +60,15 @@ export default function SingleReviewPage() {
 
   return (
     <article className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
-      {/* Dynamic JSON-LD Review Schema */}
+      {/* Dynamic JSON-LD Review Schema & Breadcrumbs */}
       <ReviewJsonLd review={review} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://ultimatum.gg' },
+          { name: 'Hardware Lab', url: 'https://ultimatum.gg/reviews' },
+          { name: review.product_name, url: `https://ultimatum.gg/reviews/${review.slug}` },
+        ]}
+      />
 
       {/* Top Breadcrumb & Share */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
@@ -297,6 +307,16 @@ export default function SingleReviewPage() {
           </div>
         )}
       </section>
+
+      {/* Community Comments */}
+      <CommentSection
+        contentType="review"
+        contentId={review.id}
+        contentSlug={review.slug}
+        onAuthRequired={() => setAuthModalOpen(true)}
+      />
+
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </article>
   );
 }

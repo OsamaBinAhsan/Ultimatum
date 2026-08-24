@@ -1,5 +1,13 @@
 export type UserRole = 'user' | 'moderator' | 'admin';
 
+export type PostStatus = 'draft' | 'scheduled' | 'published';
+
+export interface ScheduledFields {
+  status?: PostStatus;
+  scheduled_for?: string | null;
+  published_at?: string | null;
+}
+
 export interface Profile {
   id: string;
   username: string;
@@ -91,6 +99,9 @@ export interface Recipe {
   rating_count: number;
   author: string;
   created_at: string;
+  status?: PostStatus;
+  scheduled_for?: string | null;
+  published_at?: string | null;
 }
 
 export type ReviewCategory = 'tech_hardware' | 'food_lifestyle';
@@ -111,6 +122,9 @@ export interface Review {
   hero_image_url: string;
   author: string;
   created_at: string;
+  status?: PostStatus;
+  scheduled_for?: string | null;
+  published_at?: string | null;
 }
 
 export type ArticleCategory = 'beauty_fashion' | 'news_editorial' | 'gaming_news';
@@ -139,6 +153,8 @@ export interface Article {
   shoppable_items?: ShoppableItem[];
   published_at: string;
   created_at: string;
+  status?: PostStatus;
+  scheduled_for?: string | null;
 }
 
 export type AdSlotPosition = 'header_banner' | 'sidebar' | 'in_content' | 'footer' | 'rewarded_video';

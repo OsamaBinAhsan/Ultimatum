@@ -1,5 +1,5 @@
 import React from 'react';
-import { Recipe, Review, Game } from '@/lib/types';
+import { Recipe, Review, Game, Article } from '@/lib/types';
 
 interface RecipeJsonLdProps {
   recipe: Recipe;
@@ -153,6 +153,78 @@ export function GameJsonLd({ game }: GameJsonLdProps) {
       '@type': 'Organization',
       name: 'Ultimatum Arcade',
     },
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
+
+interface ArticleJsonLdProps {
+  article: Article;
+}
+
+export function ArticleJsonLd({ article }: ArticleJsonLdProps) {
+  const isNews = article.category === 'news_editorial' || article.category === 'gaming_news';
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': isNews ? 'NewsArticle' : 'Article',
+    headline: article.title,
+    description: article.subtitle || article.content?.slice(0, 160) || '',
+    image: [article.hero_image_url, ...(article.gallery_images || [])],
+    author: {
+      '@type': 'Person',
+      name: article.author,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Ultimatum',
+      url: 'https://ultimatum.gg',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://ultimatum.gg/logo.png',
+      },
+    },
+    datePublished: article.published_at || article.created_at,
+    dateModified: article.created_at,
+    keywords: article.tags?.join(', ') || '',
+    articleSection: article.category?.replace(/_/g, ' ') || 'Editorial',
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `https://ultimatum.gg/${isNews ? 'news' : 'beauty-fashion'}/${article.slug}`,
+    },
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  url: string;
+}
+
+interface BreadcrumbJsonLdProps {
+  items: BreadcrumbItem[];
+}
+
+export function BreadcrumbJsonLd({ items }: BreadcrumbJsonLdProps) {
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: item.name,
+      item: item.url,
+    })),
   };
 
   return (

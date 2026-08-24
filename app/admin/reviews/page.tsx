@@ -14,7 +14,8 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { Review, ReviewCategory } from '@/lib/types';
+import { Review, ReviewCategory, PostStatus } from '@/lib/types';
+import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 
 export default function AdminReviewsManager() {
@@ -42,6 +43,8 @@ export default function AdminReviewsManager() {
     hero_image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80',
     author: 'Alex Mercer (Hardware Lead)',
     created_at: new Date().toISOString(),
+    status: 'published' as PostStatus,
+    scheduled_for: null,
   });
 
   const [newPro, setNewPro] = useState('');
@@ -73,6 +76,8 @@ export default function AdminReviewsManager() {
       hero_image_url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1200&q=80',
       author: 'Alex Mercer (Hardware Lead)',
       created_at: new Date().toISOString(),
+      status: 'published' as PostStatus,
+      scheduled_for: null,
     });
     setIsEditing(true);
   };
@@ -426,6 +431,13 @@ export default function AdminReviewsManager() {
                 ))}
               </div>
             </div>
+
+            {/* Publishing & Scheduling Control */}
+            <SchedulePostPanel
+              status={(form.status as PostStatus) || 'published'}
+              scheduledFor={form.scheduled_for || null}
+              onChange={(s, sf) => setForm((prev) => ({ ...prev, status: s, scheduled_for: sf }))}
+            />
 
             <div className="flex justify-end gap-3 pt-2">
               <button

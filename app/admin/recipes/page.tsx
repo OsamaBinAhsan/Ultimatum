@@ -15,7 +15,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { Recipe, RecipeIngredient, RecipeInstruction } from '@/lib/types';
+import { Recipe, RecipeIngredient, RecipeInstruction, PostStatus } from '@/lib/types';
+import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 
 export default function AdminRecipesManager() {
@@ -51,6 +52,8 @@ export default function AdminRecipesManager() {
     rating: 4.9,
     rating_count: 84,
     created_at: new Date().toISOString(),
+    status: 'published' as PostStatus,
+    scheduled_for: null,
   });
 
   useEffect(() => {
@@ -78,12 +81,15 @@ export default function AdminRecipesManager() {
       ],
       instructions: [
         { step: 1, title: 'Preparation', instruction: 'Prepare all fresh ingredients and season with salt and pepper.' },
-        { step: 2, title: 'Cooking', instruction: 'Simmer over medium heat until aromas develop fully.' },
+        { step: 2, title: 'Simmer & Season', instruction: 'Simmer aromatics and spices until reduced.' },
+        { step: 3, title: 'Garnish', instruction: 'Garnish with fresh microgreens and serve warm.' },
       ],
       author: 'Chef Marco Bellini',
       rating: 5.0,
       rating_count: 1,
       created_at: new Date().toISOString(),
+      status: 'published' as PostStatus,
+      scheduled_for: null,
     });
     setIsEditing(true);
   };
@@ -536,6 +542,13 @@ export default function AdminRecipesManager() {
                 ))}
               </div>
             </div>
+
+            {/* Publishing & Scheduling Control */}
+            <SchedulePostPanel
+              status={(form.status as PostStatus) || 'published'}
+              scheduledFor={form.scheduled_for || null}
+              onChange={(s, sf) => setForm((prev) => ({ ...prev, status: s, scheduled_for: sf }))}
+            />
 
             <div className="flex justify-end gap-3 pt-2">
               <button

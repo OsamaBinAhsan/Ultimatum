@@ -18,7 +18,8 @@ import {
   Heading,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
-import { Article, ArticleCategory } from '@/lib/types';
+import { Article, ArticleCategory, PostStatus } from '@/lib/types';
+import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
 
@@ -43,6 +44,8 @@ export default function AdminNewsManager() {
     is_breaking: true,
     published_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
+    status: 'published' as PostStatus,
+    scheduled_for: null,
   });
 
   useEffect(() => {
@@ -66,6 +69,8 @@ export default function AdminNewsManager() {
       is_breaking: false,
       published_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
+      status: 'published' as PostStatus,
+      scheduled_for: null,
     });
     setIsEditing(true);
   };
@@ -326,6 +331,13 @@ export default function AdminNewsManager() {
                 <span>Flag as Breaking Dispatch (Displays prominent homepage alert banner)</span>
               </div>
             </label>
+
+            {/* Publishing & Scheduling Control */}
+            <SchedulePostPanel
+              status={(form.status as PostStatus) || 'published'}
+              scheduledFor={form.scheduled_for || null}
+              onChange={(s, sf) => setForm((prev) => ({ ...prev, status: s, scheduled_for: sf }))}
+            />
 
             <div className="flex justify-end gap-3 pt-2">
               <button

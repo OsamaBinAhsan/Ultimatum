@@ -17,9 +17,12 @@ import {
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Article } from '@/lib/types';
+import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 import { ReadingMeritsTracker } from '@/components/merits/ReadingMeritsTracker';
 import { AdSlot } from '@/components/monetization/AdSlot';
 import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
+import { CommentSection } from '@/components/account/CommentSection';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 export default function SingleBeautyFashionPage() {
   const params = useParams();
@@ -28,6 +31,7 @@ export default function SingleBeautyFashionPage() {
   const [article, setArticle] = useState<Article | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
     const a = platformStore.getArticleBySlug(slug);
@@ -49,29 +53,16 @@ export default function SingleBeautyFashionPage() {
     }
   };
 
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: article.title,
-    description: article.subtitle,
-    image: [article.hero_image_url, ...(article.gallery_images || [])],
-    author: {
-      '@type': 'Person',
-      name: article.author,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: 'Ultimatum Beauty & Fashion Lab',
-    },
-    datePublished: article.published_at,
-  };
-
   return (
     <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-      {/* Dynamic JSON-LD */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      {/* Dynamic JSON-LD Article Schema & Breadcrumbs */}
+      <ArticleJsonLd article={article} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://ultimatum.gg' },
+          { name: 'Beauty & Fashion', url: 'https://ultimatum.gg/beauty-fashion' },
+          { name: article.title, url: `https://ultimatum.gg/beauty-fashion/${article.slug}` },
+        ]}
       />
 
       {/* Passive Reading Merits Tracker */}
@@ -247,6 +238,16 @@ export default function SingleBeautyFashionPage() {
       )}
 
       <AdSlot slot="in_content" label="ARTICLE IN-CONTENT BANNER (728x90)" />
+
+      {/* Community Comments */}
+      <CommentSection
+        contentType="article"
+        contentId={article.id}
+        contentSlug={article.slug}
+        onAuthRequired={() => setAuthModalOpen(true)}
+      />
+
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </article>
   );
 }

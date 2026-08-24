@@ -528,6 +528,54 @@ class PlatformStore {
     this.saveToLocalStorage();
     return this.settings;
   }
+
+  // --- SCHEDULER HELPERS ---
+  getScheduledPosts(): {
+    recipes: Recipe[];
+    reviews: Review[];
+    articles: Article[];
+  } {
+    return {
+      recipes: this.recipes.filter((r) => r.status === 'scheduled'),
+      reviews: this.reviews.filter((r) => r.status === 'scheduled'),
+      articles: this.articles.filter((a) => a.status === 'scheduled'),
+    };
+  }
+
+  runLocalScheduler(): { publishedCount: number } {
+    const now = Date.now();
+    let count = 0;
+
+    this.recipes.forEach((r) => {
+      if (r.status === 'scheduled' && r.scheduled_for && new Date(r.scheduled_for).getTime() <= now) {
+        r.status = 'published';
+        r.published_at = new Date().toISOString();
+        count++;
+      }
+    });
+
+    this.reviews.forEach((rv) => {
+      if (rv.status === 'scheduled' && rv.scheduled_for && new Date(rv.scheduled_for).getTime() <= now) {
+        rv.status = 'published';
+        rv.published_at = new Date().toISOString();
+        count++;
+      }
+    });
+
+    this.articles.forEach((a) => {
+      if (a.status === 'scheduled' && a.scheduled_for && new Date(a.scheduled_for).getTime() <= now) {
+        a.status = 'published';
+        a.published_at = new Date().toISOString();
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      this.saveToLocalStorage();
+    }
+
+    return { publishedCount: count };
+  }
 }
 
 export const platformStore = new PlatformStore();

@@ -1,0 +1,17 @@
+name: Post Scheduler
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  publish-scheduled-posts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger publish worker
+        run: |
+          curl -X POST "${{ secrets.SITE_URL }}/api/scheduler/publish" \
+            -H "x-scheduler-secret: ${{ secrets.SCHEDULER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail --silent --show-error || true
