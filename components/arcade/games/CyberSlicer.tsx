@@ -946,6 +946,41 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
     setGameState('playing');
   };
 
+  // Auto-start on mount
+  useEffect(() => {
+    startGame();
+  }, []);
+
+  // Prevent window scrolling on game keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const gameKeys = ['Space', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyP', 'Escape'];
+      if (gameKeys.includes(e.code) || gameKeys.includes(e.key)) {
+        e.preventDefault();
+      }
+      if (e.code === 'KeyP' || e.code === 'Escape') {
+        if (gameState === 'playing') setGameState('paused');
+        else if (gameState === 'paused') setGameState('playing');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState]);
+
+  // Automated Score Submission on Game Over (Zero manual user input)
+  useEffect(() => {
+    if (gameState === 'gameover') {
+      try {
+        localStorage.setItem(`ultimatum_highscore_${gameId}_${gameMode}`, score.toString());
+      } catch {}
+      platformStore.submitScore(gameId, score);
+      setIsScoreSubmitted(true);
+      if (onScoreSubmitted) {
+        onScoreSubmitted(score);
+      }
+    }
+  }, [gameState, score, gameId, gameMode, onScoreSubmitted]);
+
   const handleSubmitScore = () => {
     if (isScoreSubmitted) return;
     try {

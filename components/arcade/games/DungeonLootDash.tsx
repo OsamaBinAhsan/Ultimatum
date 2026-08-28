@@ -465,11 +465,15 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      const gameKeys = ['Space', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyX', 'KeyC', 'KeyZ'];
+      if (gameKeys.includes(e.code) || gameKeys.includes(e.key)) {
         e.preventDefault();
+      }
+
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
         jump();
       }
-      if (e.code === 'KeyX' || e.code === 'KeyF') {
+      if (e.code === 'KeyX' || e.code === 'KeyC' || e.code === 'KeyZ') {
         slash();
       }
       if (e.code === 'ArrowDown' || e.code === 'KeyS') {
@@ -483,8 +487,8 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    window.addEventListener('keyup', handleKeyUp, { passive: false });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -518,6 +522,23 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
     setHasUsedRevive(false);
     setGameState('playing');
   };
+
+  // Auto-start on mount
+  useEffect(() => {
+    startGame();
+  }, []);
+
+  // Automated Score Submission on Game Over
+  useEffect(() => {
+    if (gameState === 'gameover') {
+      try {
+        localStorage.setItem(`ultimatum_highscore_${gameId}`, score.toString());
+      } catch {}
+      platformStore.submitScore(gameId, score);
+      setIsScoreSubmitted(true);
+      if (onScoreSubmitted) onScoreSubmitted(score);
+    }
+  }, [gameState, score, gameId, onScoreSubmitted]);
 
   const handleRewardedRevive = () => {
     knightRef.current.y = 360;

@@ -22,6 +22,8 @@ export default function GamesHubPage() {
     { id: 'action', label: 'Fast Action' },
     { id: 'puzzle', label: 'Puzzles & Cooking' },
     { id: 'retro', label: '8-Bit Retro' },
+    { id: 'strategy', label: 'Strategy & Chess' },
+    { id: 'shooter', label: 'Shooters' },
   ];
 
   const filteredGames =
@@ -31,17 +33,29 @@ export default function GamesHubPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-r from-zinc-950 via-cyan-950/40 to-zinc-950 p-8 sm:p-12 shadow-2xl">
-        <div className="relative z-10 max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-300">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>PLAYABLE 2D & CANVAS ENGINES</span>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="max-w-2xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-300">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>PLAYABLE 2D &amp; CANVAS ENGINES</span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
+              The Arcade Vault
+            </h1>
+            <p className="text-base text-zinc-300 leading-relaxed">
+              Play responsive casual &amp; MS-paint styled arcade games directly in your browser. Set weekly high scores, earn Engagement XP, and claim limited-edition profile badges.
+            </p>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            The Arcade Vault
-          </h1>
-          <p className="text-base text-zinc-300 leading-relaxed">
-            Play responsive casual & MS-paint styled arcade games directly in your browser. Set weekly high scores, earn Engagement XP, and claim limited-edition profile badges.
-          </p>
+
+          <div className="flex-shrink-0">
+            <Link
+              href="/games/shop"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3.5 text-xs font-bold text-white shadow-xl shadow-purple-600/30 hover:scale-105 transition-all"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Visit Cosmetics &amp; Skins Shop</span>
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -36,6 +36,20 @@ export default function SingleGamePage() {
         setLeaderboard(synced);
       });
     }
+
+    const handleLeaderboardUpdate = () => {
+      const g = platformStore.getGameBySlug(slug);
+      if (g) {
+        setLeaderboard(platformStore.getLeaderboard(g.id));
+      }
+    };
+
+    window.addEventListener('leaderboard-updated', handleLeaderboardUpdate);
+    window.addEventListener('balance-updated', handleLeaderboardUpdate);
+    return () => {
+      window.removeEventListener('leaderboard-updated', handleLeaderboardUpdate);
+      window.removeEventListener('balance-updated', handleLeaderboardUpdate);
+    };
   }, [slug]);
 
   if (!game && typeof window !== 'undefined') {
@@ -48,7 +62,8 @@ export default function SingleGamePage() {
 
   const handleScoreSubmitted = (score?: number) => {
     // Refresh leaderboard locally and sync with API
-    setLeaderboard(platformStore.getLeaderboard(game.id));
+    const updated = platformStore.getLeaderboard(game.id);
+    setLeaderboard(updated);
     platformStore.syncLeaderboardFromApi(game.id).then((synced) => {
       setLeaderboard(synced);
     });

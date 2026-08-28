@@ -8,6 +8,8 @@ import {
   ShieldAlert,
   CheckCircle,
   Filter,
+  Coins,
+  Loader2,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { LeaderboardEntry, Game } from '@/lib/types';
@@ -18,6 +20,7 @@ export default function AdminLeaderboardModeration() {
   const [games, setGames] = useState<Game[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string>('all');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isProcessingPayouts, setIsProcessingPayouts] = useState<boolean>(false);
 
   useEffect(() => {
     setScores(platformStore.getLeaderboard());
@@ -61,9 +64,41 @@ export default function AdminLeaderboardModeration() {
     }
   };
 
+  const handleProcessWeeklyPayouts = async () => {
+    if (
+      !confirm(
+        '🏆 AUTOMATED TOURNAMENT PAYOUT: Calculate top 10 winners per game, credit wallets via atomic SQL transaction, write audit logs to [leaderboard_payout_logs], and reset leaderboards?'
+      )
+    ) {
+      return;
+    }
+
+    setIsProcessingPayouts(true);
+    try {
+      const res = await fetch('/api/admin/leaderboards/process-payouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setScores([]);
+        setFeedback(`🎉 ${data.message}`);
+        confetti({ particleCount: 120, spread: 90 });
+      } else {
+        setFeedback(`❌ Error: ${data.error || 'Failed to process weekly payouts'}`);
+      }
+    } catch (err: any) {
+      setFeedback(`❌ Network Error: ${err.message}`);
+    } finally {
+      setIsProcessingPayouts(false);
+      setTimeout(() => setFeedback(null), 8000);
+    }
+  };
+
   const getGameTitle = (gameId: string) => {
-    const g = games.find((x) => x.id === gameId);
-    return g ? g.title : 'Neon Asteroid Blitz';
+    const g = games.find((x) => x.id === gameId || x.slug === gameId);
+    return g ? g.title : gameId || 'Arcade Game';
   };
 
   return (
@@ -77,17 +112,32 @@ export default function AdminLeaderboardModeration() {
           </div>
           <h1 className="text-3xl font-black text-white">Leaderboard Moderation</h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Monitor real-time score submissions, delete fraudulent cheat entries, and trigger tournament weekly resets.
+            Monitor real-time score submissions, delete fraudulent cheat entries, and trigger automated weekly tournament payouts.
           </p>
         </div>
 
-        <button
-          onClick={handleTriggerWeeklyReset}
-          className="flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-500 shadow-lg shadow-rose-600/30 transition-all hover:scale-105"
-        >
-          <RotateCcw className="w-4 h-4" />
-          <span>Trigger Weekly Reset</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleProcessWeeklyPayouts}
+            disabled={isProcessingPayouts}
+            className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-black hover:bg-amber-400 shadow-lg shadow-amber-500/20 transition-all hover:scale-105 disabled:opacity-50"
+          >
+            {isProcessingPayouts ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Coins className="w-4 h-4" />
+            )}
+            <span>Process Payouts & Reset</span>
+          </button>
+
+          <button
+            onClick={handleTriggerWeeklyReset}
+            className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500 shadow-lg shadow-rose-600/30 transition-all hover:scale-105"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Fast Wipe</span>
+          </button>
+        </div>
       </div>
 
       {feedback && (

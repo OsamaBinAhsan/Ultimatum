@@ -209,3 +209,68 @@ export interface Comment {
   created_at: string;
 }
 
+export type GameItemType = 'skin' | 'powerup' | 'badge' | 'consumable' | 'avatar_frame' | 'cosmetic';
+
+export interface GameItem {
+  id: string;
+  game_id?: string | null;
+  name: string;
+  slug: string;
+  item_type: GameItemType;
+  price_coins: number;
+  asset_url?: string | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LeaderboardPayoutLog {
+  id: number;
+  week_identifier: string;
+  game_id: string;
+  user_id: string;
+  rank_position: number;
+  score: number;
+  coins_awarded: number;
+  created_at: string;
+}
+
+export interface ContentTag {
+  id: number;
+  name: string;
+  slug: string;
+  niche: 'gaming' | 'lifestyle' | 'news' | 'recipes' | 'tech' | string;
+  description?: string | null;
+  created_at: string;
+}
+
+export interface PostTagRelation {
+  id: number;
+  tag_id: number;
+  post_id: string;
+  post_type: 'article' | 'recipe' | 'review' | 'game' | string;
+  created_at: string;
+}
+
+export interface PayoutWinnerDetail {
+  user_id: string;
+  username: string;
+  game_id: string;
+  rank_position: number;
+  score: number;
+  coins_awarded: number;
+  new_balance?: number;
+}
+
+export interface PayoutProcessResult {
+  success: boolean;
+  message: string;
+  week_identifier: string;
+  total_games_processed: number;
+  total_winners_awarded: number;
+  total_coins_distributed: number;
+  payouts_by_game: Record<string, PayoutWinnerDetail[]>;
+  reset_timestamp: string;
+}
+
+

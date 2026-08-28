@@ -641,6 +641,27 @@ export function TheArchitectAndTheRatsEngine({
     selectedGameMode,
   ]);
 
+  // Auto-start architect phase on mount when inside GameWrapper
+  useEffect(() => {
+    startArchitectPhase();
+  }, [startArchitectPhase]);
+
+  // Prevent window scrolling on game keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const gameKeys = ['Space', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE', 'KeyQ'];
+      if (gameKeys.includes(e.code) || gameKeys.includes(e.key)) {
+        const activeEl = document.activeElement;
+        const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+        if (!isInput) {
+          e.preventDefault();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const startRatPhase = useCallback(() => {
     if (!validatePathExists(gridRef.current, startTile.current, trueExitTile.current)) {
       for (let i = 1; i < GRID_SIZE - 1; i++) {

@@ -392,7 +392,88 @@ END
 GO
 
 -- --------------------------------------------------------
--- 3. MASTER IDEMPOTENT SEED DATA
+-- 3. EXPANDED PLATFORM TABLES (TAXONOMY, ITEMS & AUDIT)
+-- --------------------------------------------------------
+
+-- Inventory Shop Catalog Items
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'game_items' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[game_items] (
+        [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
+        [game_id] NVARCHAR(64) NULL,
+        [name] NVARCHAR(255) NOT NULL,
+        [slug] NVARCHAR(255) NOT NULL UNIQUE,
+        [item_type] NVARCHAR(50) NOT NULL,
+        [price_coins] INT NOT NULL DEFAULT 0,
+        [asset_url] NVARCHAR(MAX) NULL,
+        [is_active] BIT NOT NULL DEFAULT 1,
+        [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        [updated_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT [FK_game_items_games] FOREIGN KEY ([game_id]) REFERENCES [dbo].[games]([id]) ON DELETE SET NULL
+    );
+    CREATE INDEX [IX_game_items_game_id] ON [dbo].[game_items] ([game_id]);
+    CREATE INDEX [IX_game_items_item_type] ON [dbo].[game_items] ([item_type]);
+    CREATE INDEX [IX_game_items_is_active] ON [dbo].[game_items] ([is_active]);
+    CREATE INDEX [IX_game_items_slug] ON [dbo].[game_items] ([slug]);
+END
+GO
+
+-- Leaderboard Weekly Payout Audit Logs
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'leaderboard_payout_logs' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[leaderboard_payout_logs] (
+        [id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [week_identifier] NVARCHAR(64) NOT NULL,
+        [game_id] NVARCHAR(64) NOT NULL,
+        [user_id] NVARCHAR(64) NOT NULL,
+        [rank_position] INT NOT NULL,
+        [score] INT NOT NULL,
+        [coins_awarded] INT NOT NULL,
+        [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT [FK_leaderboard_payout_logs_games] FOREIGN KEY ([game_id]) REFERENCES [dbo].[games]([id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_leaderboard_payout_logs_profiles] FOREIGN KEY ([user_id]) REFERENCES [dbo].[profiles]([id]) ON DELETE CASCADE
+    );
+    CREATE INDEX [IX_leaderboard_payout_logs_week_game] ON [dbo].[leaderboard_payout_logs] ([week_identifier], [game_id]);
+    CREATE INDEX [IX_leaderboard_payout_logs_user] ON [dbo].[leaderboard_payout_logs] ([user_id]);
+    CREATE INDEX [IX_leaderboard_payout_logs_created] ON [dbo].[leaderboard_payout_logs] ([created_at] DESC);
+END
+GO
+
+-- Cross-Niche Content Tags Taxonomy
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'content_tags' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[content_tags] (
+        [id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [name] NVARCHAR(100) NOT NULL,
+        [slug] NVARCHAR(150) NOT NULL UNIQUE,
+        [niche] NVARCHAR(50) NOT NULL,
+        [description] NVARCHAR(500) NULL,
+        [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+    );
+    CREATE INDEX [IX_content_tags_niche] ON [dbo].[content_tags] ([niche]);
+    CREATE INDEX [IX_content_tags_slug] ON [dbo].[content_tags] ([slug]);
+END
+GO
+
+-- Relational Post-Tag Bridge
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'post_tag_relations' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[post_tag_relations] (
+        [id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [tag_id] BIGINT NOT NULL,
+        [post_id] NVARCHAR(64) NOT NULL,
+        [post_type] NVARCHAR(50) NOT NULL,
+        [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT [UK_post_tag_relations] UNIQUE ([tag_id], [post_id], [post_type]),
+        CONSTRAINT [FK_post_tag_relations_tag] FOREIGN KEY ([tag_id]) REFERENCES [dbo].[content_tags]([id]) ON DELETE CASCADE
+    );
+    CREATE INDEX [IX_post_tag_relations_post] ON [dbo].[post_tag_relations] ([post_id], [post_type]);
+    CREATE INDEX [IX_post_tag_relations_tag] ON [dbo].[post_tag_relations] ([tag_id]);
+END
+GO
+
+-- --------------------------------------------------------
+-- 4. MASTER IDEMPOTENT SEED DATA
 -- --------------------------------------------------------
 
 -- 3.1 Seed Profiles

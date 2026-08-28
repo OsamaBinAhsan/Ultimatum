@@ -115,9 +115,18 @@ class PlatformStore {
       const lb = localStorage.getItem('ultimatum_leaderboard');
       if (lb) {
         const storedLb: LeaderboardEntry[] = JSON.parse(lb);
-        const existingIds = new Set(storedLb.map((item) => item.id));
-        const missingEntries = INITIAL_LEADERBOARD.filter((item) => !existingIds.has(item.id));
-        this.leaderboard = [...storedLb, ...missingEntries];
+        const combined = [...storedLb, ...INITIAL_LEADERBOARD];
+        const deduplicatedMap = new Map<string, LeaderboardEntry>();
+        for (const item of combined) {
+          const uKey = item.user_id || item.player_name || item.profile?.username || 'player';
+          const gKey = item.game_id;
+          const key = `${uKey}_${gKey}`;
+          const existing = deduplicatedMap.get(key);
+          if (!existing || item.score > existing.score) {
+            deduplicatedMap.set(key, item);
+          }
+        }
+        this.leaderboard = Array.from(deduplicatedMap.values()).sort((a, b) => b.score - a.score);
       }
       const prof = localStorage.getItem('ultimatum_profiles');
       if (prof) this.profiles = JSON.parse(prof);
@@ -207,6 +216,18 @@ class PlatformStore {
     if (idx >= 0) this.profiles[idx].points += bonus;
     this.saveToLocalStorage();
     return bonus;
+  }
+
+  awardPoints(userId: string, points: number): number {
+    const profile = this.profiles.find((p) => p.id === userId);
+    if (profile) {
+      profile.points = (profile.points || 0) + points;
+    }
+    if (this.currentUser && this.currentUser.id === userId) {
+      this.currentUser.points = (this.currentUser.points || 0) + points;
+    }
+    this.saveToLocalStorage();
+    return points;
   }
 
   // --- ARTICLES (Beauty, Fashion, News, Blogs) ---
@@ -399,15 +420,36 @@ class PlatformStore {
   getLeaderboard(gameId?: string): LeaderboardEntry[] {
     let list = this.leaderboard;
     if (gameId) {
-      list = list.filter((e) => e.game_id === gameId);
+      const game = this.games.find((g) => g.id === gameId || g.slug === gameId);
+      const targetId = game ? game.id : gameId;
+      const targetSlug = game ? game.slug : gameId;
+      list = list.filter((e) => e.game_id === targetId || e.game_id === targetSlug);
     }
-    return list.sort((a, b) => b.score - a.score);
+
+    // STRICT GUARANTEE: Exactly 1 entry per player/user, preserving highest score
+    const bestUserScores = new Map<string, LeaderboardEntry>();
+    for (const entry of list) {
+      const userKey = entry.user_id || entry.player_name || entry.profile?.username || 'player';
+      const existing = bestUserScores.get(userKey);
+      if (!existing || entry.score > existing.score) {
+        bestUserScores.set(userKey, entry);
+      }
+    }
+
+    return Array.from(bestUserScores.values())
+      .sort((a, b) => b.score - a.score)
+      .map((entry, idx) => ({
+        ...entry,
+        rank: idx + 1,
+      }));
   }
 
   async syncLeaderboardFromApi(gameId?: string): Promise<LeaderboardEntry[]> {
     if (typeof window === 'undefined') return this.getLeaderboard(gameId);
     try {
-      const url = gameId ? `/api/leaderboards?game_id=${gameId}` : '/api/leaderboards';
+      const game = this.games.find((g) => g.id === gameId || g.slug === gameId);
+      const targetId = game ? game.id : gameId;
+      const url = targetId ? `/api/leaderboards?game_id=${targetId}` : '/api/leaderboards';
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -428,13 +470,23 @@ class PlatformStore {
             },
           }));
 
-          // Merge with existing leaderboard (avoiding duplicates)
-          const map = new Map<string, LeaderboardEntry>();
-          apiEntries.forEach((e) => map.set(e.id, e));
-          this.leaderboard.forEach((e) => {
-            if (!map.has(e.id)) map.set(e.id, e);
-          });
-          this.leaderboard = Array.from(map.values()).sort((a, b) => b.score - a.score);
+          // Merge API entries with existing in-memory leaderboard by (user, game)
+          const mergedMap = new Map<string, LeaderboardEntry>();
+          for (const e of this.leaderboard) {
+            const uKey = e.user_id || e.player_name || e.profile?.username || 'player';
+            const gKey = e.game_id;
+            mergedMap.set(`${uKey}_${gKey}`, e);
+          }
+          for (const e of apiEntries) {
+            const uKey = e.user_id || e.player_name || e.profile?.username || 'player';
+            const gKey = e.game_id;
+            const existing = mergedMap.get(`${uKey}_${gKey}`);
+            if (!existing || e.score > existing.score) {
+              mergedMap.set(`${uKey}_${gKey}`, e);
+            }
+          }
+
+          this.leaderboard = Array.from(mergedMap.values()).sort((a, b) => b.score - a.score);
           this.saveToLocalStorage();
         }
       }
@@ -446,25 +498,70 @@ class PlatformStore {
 
   submitScore(gameId: string, score: number): LeaderboardEntry {
     const user = this.currentUser || this.profiles[0];
-    const entry: LeaderboardEntry = {
-      id: 'lb-' + Date.now(),
-      user_id: user.id,
-      game_id: gameId,
-      score,
-      player_name: user.username,
-      avatar_url: user.avatar_url,
-      week_timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      profile: {
-        username: user.username,
+    const game = this.games.find((g) => g.id === gameId || g.slug === gameId);
+    const targetGameId = game ? game.id : gameId;
+    const targetGameSlug = game ? game.slug : gameId;
+
+    // Find existing entry for this user and game (checking both id and slug)
+    const existingIndex = this.leaderboard.findIndex(
+      (e) => (e.user_id === user.id || e.player_name === user.username) &&
+             (e.game_id === targetGameId || e.game_id === targetGameSlug)
+    );
+
+    let entry: LeaderboardEntry;
+
+    if (existingIndex >= 0) {
+      const existing = this.leaderboard[existingIndex];
+      // Only overwrite if new score is strictly greater (preserve high score)
+      if (score > existing.score) {
+        existing.score = score;
+        existing.game_id = targetGameId;
+        existing.week_timestamp = new Date().toISOString();
+        existing.player_name = user.username;
+        existing.avatar_url = user.avatar_url;
+        existing.profile = {
+          username: user.username,
+          avatar_url: user.avatar_url,
+          badges: user.badges,
+        };
+      }
+      entry = existing;
+    } else {
+      entry = {
+        id: 'lb-' + Date.now(),
+        user_id: user.id,
+        game_id: targetGameId,
+        score,
+        player_name: user.username,
         avatar_url: user.avatar_url,
-        badges: user.badges,
-      },
-    };
+        week_timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        profile: {
+          username: user.username,
+          avatar_url: user.avatar_url,
+          badges: user.badges,
+        },
+      };
+      this.leaderboard.push(entry);
+    }
 
-    this.leaderboard.push(entry);
+    // Clean up any other duplicate entries for this user and game
+    this.leaderboard = this.leaderboard.filter(
+      (e) =>
+        e.id === entry.id ||
+        !(
+          (e.user_id === user.id || e.player_name === user.username) &&
+          (e.game_id === targetGameId || e.game_id === targetGameSlug)
+        )
+    );
 
-    const game = this.games.find((g) => g.id === gameId);
+    // Sort leaderboard by score descending
+    this.leaderboard.sort((a, b) => b.score - a.score);
+
+    // Calculate current rank
+    const gameEntries = this.getLeaderboard(targetGameId);
+    entry.rank = gameEntries.findIndex((e) => e.user_id === user.id || e.player_name === user.username) + 1;
+
     if (game) game.play_count += 1;
 
     const pointsAwarded = Math.floor(score / 100);
@@ -476,13 +573,17 @@ class PlatformStore {
 
     this.saveToLocalStorage();
 
-    // Asynchronously persist to backend SQL Server Database
+    // Dispatch global event for instant UI re-render
     if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('leaderboard-updated', { detail: { gameId: targetGameId, score } }));
+      window.dispatchEvent(new CustomEvent('balance-updated', { detail: { coinsEarned: pointsAwarded } }));
+
+      // Asynchronously persist to backend SQL Server Database
       fetch('/api/leaderboards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          game_id: gameId,
+          game_id: targetGameId,
           score,
           user_id: user.id,
           username: user.username,

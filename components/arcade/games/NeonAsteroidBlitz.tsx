@@ -2279,6 +2279,25 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
     setGameState('playing');
   };
 
+  // Auto-start on mount when launched from Arcade
+  useEffect(() => {
+    startGame();
+  }, []);
+
+  // Automated Score Submission on Game Over (Zero manual button clicks required)
+  useEffect(() => {
+    if (gameState === 'gameover') {
+      try {
+        localStorage.setItem(`ultimatum_highscore_${gameId}`, score.toString());
+      } catch {}
+      platformStore.submitScore(gameId, score);
+      setIsScoreSubmitted(true);
+      if (onScoreSubmitted) {
+        onScoreSubmitted(score);
+      }
+    }
+  }, [gameState, score, gameId, onScoreSubmitted]);
+
   const handleRewardedAdRevive = () => {
     setLives(1);
     setShieldHealth(100);

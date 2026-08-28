@@ -939,8 +939,29 @@ export function SabotageCircuitEngine({
       status: 'PLAYING',
     };
     setGameState(initG);
-    setRoleModalVisible(true);
+    setRoleModalVisible(false);
   };
+
+  // Auto-start simulation on mount when loaded inside GameWrapper
+  useEffect(() => {
+    handleStartSoloMission('ENGINEER');
+  }, []);
+
+  // Prevent window scrolling on game keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const gameKeys = ['Space', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+      if (gameKeys.includes(e.code) || gameKeys.includes(e.key)) {
+        const activeEl = document.activeElement;
+        const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+        if (!isInput) {
+          e.preventDefault();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleHostInit = () => {
     sfx.playClick();

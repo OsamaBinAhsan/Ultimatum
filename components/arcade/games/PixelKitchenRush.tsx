@@ -16,6 +16,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
+import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
 import { AuthModal } from '@/components/auth/AuthModal';
 import confetti from 'canvas-confetti';
@@ -200,10 +201,10 @@ interface KitchenState {
   };
 }
 
-export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
+export function PixelKitchenRushEngine({ gameId, gameTitle: _gameTitle, onScoreSubmitted }: PixelKitchenProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<any | null>(null);
   const soundRef = useRef<KitchenSynthAudio>(new KitchenSynthAudio());
   const animFrameRef = useRef<number | null>(null);
 
@@ -336,21 +337,21 @@ export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
       setMyPlayerId(socket.id || '');
     });
 
-    socket.on('room_created', ({ roomCode: code, state }) => {
+    socket.on('room_created', ({ roomCode: code, state }: { roomCode: string; state: KitchenState }) => {
       setRoomCode(code);
       setIsHost(true);
       setNetworkMode('multiplayer');
       lastStateRef.current = state;
     });
 
-    socket.on('room_joined', ({ roomCode: code, state }) => {
+    socket.on('room_joined', ({ roomCode: code, state }: { roomCode: string; state: KitchenState }) => {
       setRoomCode(code);
       setIsHost(false);
       setNetworkMode('multiplayer');
       lastStateRef.current = state;
     });
 
-    socket.on('join_error', ({ message }) => {
+    socket.on('join_error', ({ message }: { message: string }) => {
       setLobbyError(message || 'Failed to join room.');
     });
 
@@ -441,6 +442,11 @@ export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
     }
   };
 
+  // Auto-start shift on mount
+  useEffect(() => {
+    handleStartShift();
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Daily Review & Payout Loop
   // ---------------------------------------------------------------------------
@@ -461,6 +467,16 @@ export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
 
     const reviewText = generateCustomerReview(rating, served, burned);
     setCustomerReview(reviewText);
+
+    // Automated Score Submission
+    const finalScore = tips + served * 50;
+    try {
+      localStorage.setItem(`ultimatum_highscore_${gameId}`, finalScore.toString());
+    } catch {}
+    platformStore.submitScore(gameId, finalScore);
+    if (onScoreSubmitted) {
+      onScoreSubmitted(finalScore);
+    }
 
     try {
       const res = await fetch('/api/kitchen/payout', {
@@ -703,10 +719,15 @@ export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressedRef.current[e.key.toLowerCase()] = true;
-      if (e.key === ' ' || e.key.toLowerCase() === 'e') {
+      const k = e.key.toLowerCase();
+      const gameKeys = [' ', 'space', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', 'e', 'q'];
+      if (gameKeys.includes(k) || gameKeys.includes(e.code.toLowerCase())) {
+        e.preventDefault();
+      }
+      keysPressedRef.current[k] = true;
+      if (e.key === ' ' || k === 'e') {
         handleActionButton('interact');
-      } else if (e.key.toLowerCase() === 'q') {
+      } else if (k === 'q') {
         handleActionButton('toss');
       }
     };
@@ -715,8 +736,8 @@ export function PixelKitchenRushEngine(_props: PixelKitchenProps) {
       keysPressedRef.current[e.key.toLowerCase()] = false;
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    window.addEventListener('keyup', handleKeyUp, { passive: false });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);

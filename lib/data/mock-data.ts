@@ -286,7 +286,33 @@ export const INITIAL_GAMES: Game[] = [
     play_count: 31250,
     created_at: '2026-03-15T10:00:00Z',
   },
+  {
+    id: 'game-007',
+    slug: 'hyper-chess',
+    title: 'Hyper-Chess',
+    description: '60 FPS animated chess with a Juice Engine (Hit-Stop & Camera Shake on check), Core Control Mana Zone granting +5 mana per occupied center square, a rotating 2-slot Ability Deck (Teleport, EMP Shockwave, Freeze, Overcharge), and a full viewport perspective flip for Player 2.',
+    category: 'strategy',
+    thumbnail_url: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80',
+    game_file_url: 'canvas://hyper-chess',
+    is_sponsored: false,
+    play_count: 8200,
+    created_at: '2026-07-01T10:00:00Z',
+  },
+  {
+    id: 'game-008',
+    slug: 'spacecraft-shooter',
+    title: 'Spacecraft Shooter',
+    description: 'Zero-GC vertical scrolling space shooter. Object-pooled nose-directional missiles (FastPool, 64 slots), dynamic enemy waves scaling with level, Level 10 full viewport expansion, and power-ups spawning every 15 seconds: Shield, Rapid Fire, Triple Shot & Nuke.',
+    category: 'arcade',
+    thumbnail_url: 'https://images.unsplash.com/photo-1446776877081-d282a0f896e2?auto=format&fit=crop&w=800&q=80',
+    game_file_url: 'canvas://spacecraft-shooter',
+    is_sponsored: false,
+    play_count: 11350,
+    created_at: '2026-07-15T10:00:00Z',
+  },
 ];
+
+
 
 export const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
   // Game 001 - Neon Asteroid Blitz

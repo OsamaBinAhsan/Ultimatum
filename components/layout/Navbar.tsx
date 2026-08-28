@@ -31,10 +31,24 @@ export function Navbar() {
   useEffect(() => {
     setUser(platformStore.getCurrentUser());
     setCustomPages(platformStore.getPages().filter((p) => p.show_in_nav));
+
+    const handleBalanceUpdate = () => {
+      setUser(platformStore.getCurrentUser());
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('balance-updated', handleBalanceUpdate);
+      window.addEventListener('storage', handleBalanceUpdate);
+      return () => {
+        window.removeEventListener('balance-updated', handleBalanceUpdate);
+        window.removeEventListener('storage', handleBalanceUpdate);
+      };
+    }
   }, [pathname, authModalOpen]);
 
   const navLinks = [
     { name: 'The Arcade', href: '/games', icon: Gamepad2 },
+    { name: 'Cosmetics Shop', href: '/games/shop', icon: Coins },
     { name: 'The Kitchen', href: '/recipes', icon: Utensils },
     { name: 'The Lab', href: '/reviews', icon: Cpu },
     { name: 'Beauty & Style', href: '/beauty-fashion', icon: Sparkles },
@@ -96,12 +110,16 @@ export function Navbar() {
 
           {/* Right Side: XP, Admin CMS, and User Auth */}
           <div className="hidden sm:flex items-center gap-2.5">
-            {/* User Points Badge */}
+            {/* User Points Badge with Shop Link */}
             {user && (
-              <div className="flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-400">
+              <Link
+                href="/games/shop"
+                title="Spend your Coins in the Cosmetics Shop"
+                className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1 text-xs font-bold text-amber-400 transition-all hover:scale-105 shadow-sm"
+              >
                 <Coins className="w-3.5 h-3.5 text-amber-400" />
                 <span className="font-mono">{user.points.toLocaleString()} XP</span>
-              </div>
+              </Link>
             )}
 
             {/* Admin CMS Quick Launcher */}
