@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 
@@ -51,7 +51,7 @@ export function BrandLogo({ size = 'md', showText = true, className = '' }: Bran
       </div>
 
       {showText && (
-        <span className={`${currentSize.text} font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors`}>
+        <span className={`${currentSize.text} font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors whitespace-nowrap`}>
           ULTIMATUM<span className="text-cyan-400">.</span>
         </span>
       )}

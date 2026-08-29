@@ -2354,12 +2354,28 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (gameState !== 'playing' || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const scaleX = 800 / rect.width;
+    const scaleY = 600 / rect.height;
+    const targetX = (e.clientX - rect.left) * scaleX;
+    const targetY = (e.clientY - rect.top) * scaleY;
+
+    playerRef.current.x = Math.max(26, Math.min(774, targetX));
+    playerRef.current.y = Math.max(45, Math.min(555, targetY));
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (gameState !== 'playing' || !canvasRef.current || e.touches.length === 0) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     const touch = e.touches[0];
-    const targetX = ((touch.clientX - rect.left) / rect.width) * 800;
-    const targetY = ((touch.clientY - rect.top) / rect.height) * 600;
+    const scaleX = 800 / rect.width;
+    const scaleY = 600 / rect.height;
+    const targetX = (touch.clientX - rect.left) * scaleX;
+    const targetY = (touch.clientY - rect.top) * scaleY;
 
     playerRef.current.x = Math.max(26, Math.min(774, targetX));
     playerRef.current.y = Math.max(45, Math.min(555, targetY));
@@ -2697,8 +2713,10 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
             ref={canvasRef}
             width={800}
             height={600}
+            onPointerMove={handlePointerMove}
             onTouchMove={handleTouchMove}
-            className="h-full w-full object-contain cursor-crosshair touch-none"
+            className="h-full w-full object-contain cursor-crosshair touch-none select-none"
+            style={{ touchAction: 'none' }}
           />
 
         {/* Paused Overlay */}
@@ -2774,35 +2792,26 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
         )}
       </div>
 
-      {/* Mobile Touch Action Pad */}
+      {/* Mobile Touch Action Pad (>=48px touch targets) */}
       {gameState === 'playing' && (
         <div className="flex sm:hidden items-center justify-between gap-3 pt-2">
           <button
-            onTouchStart={() => {
-              keysRef.current['Space'] = true;
-            }}
-            onTouchEnd={() => {
-              keysRef.current['Space'] = false;
-            }}
-            onMouseDown={() => {
-              keysRef.current['Space'] = true;
-            }}
-            onMouseUp={() => {
-              keysRef.current['Space'] = false;
-            }}
+            onPointerDown={() => { keysRef.current['Space'] = true; }}
+            onPointerUp={() => { keysRef.current['Space'] = false; }}
+            onPointerCancel={() => { keysRef.current['Space'] = false; }}
             disabled={isOverheated}
-            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-wider ${
+            className={`flex-1 min-h-[48px] py-3.5 rounded-xl font-black text-xs uppercase tracking-wider select-none cursor-pointer ${
               isOverheated
                 ? 'bg-rose-900 text-rose-300 border border-rose-700 animate-pulse'
-                : 'bg-cyan-500 text-zinc-950 active:bg-cyan-400'
+                : 'bg-cyan-500 text-zinc-950 active:bg-cyan-400 shadow-lg shadow-cyan-900/30'
             }`}
           >
             {isOverheated ? '🔥 Overheated' : '🔥 Fire Blasters'}
           </button>
           <button
-            onClick={triggerEMP}
+            onPointerDown={triggerEMP}
             disabled={empCharges <= 0}
-            className="flex-1 py-3.5 rounded-xl bg-purple-600 font-black text-xs text-white active:bg-purple-500 disabled:opacity-40 uppercase tracking-wider"
+            className="flex-1 min-h-[48px] py-3.5 rounded-xl bg-purple-600 font-black text-xs text-white active:bg-purple-500 disabled:opacity-40 uppercase tracking-wider select-none cursor-pointer shadow-lg shadow-purple-900/30"
           >
             💥 EMP Bomb ({empCharges})
           </button>

@@ -1,10 +1,12 @@
 'use client';
 
-import {
+import React, {
   useState,
   useEffect,
   useCallback,
   useRef,
+  Component,
+  ErrorInfo,
   ReactNode,
 } from 'react';
 import confetti from 'canvas-confetti';
@@ -30,9 +32,7 @@ import {
   Volume2,
   Eye,
   ChevronRight,
-  Gamepad2,
-  Swords,
-  Layers,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { platformStore } from '@/lib/data/store';
@@ -47,6 +47,71 @@ import type {
 } from '@/lib/types/arcade';
 
 // ---------------------------------------------------------------------------
+// Error Boundary for Game Viewport
+// ---------------------------------------------------------------------------
+
+interface GameErrorBoundaryProps {
+  children: ReactNode;
+  onReset?: () => void;
+  gameTitle?: string;
+}
+
+interface GameErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class GameErrorBoundary extends Component<GameErrorBoundaryProps, GameErrorBoundaryState> {
+  constructor(props: GameErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): GameErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[GameErrorBoundary] Caught runtime exception in game engine:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+    this.props.onReset?.();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-[420px] w-full flex-col items-center justify-center rounded-2xl border border-rose-500/40 bg-zinc-950 p-6 text-center shadow-2xl backdrop-blur-md">
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400">
+            <AlertTriangle className="h-7 w-7" />
+          </div>
+          <div className="text-xs font-mono font-bold uppercase tracking-widest text-rose-400">
+            ENGINE RECOVERY MODE
+          </div>
+          <h3 className="mt-1 text-2xl font-black text-white">
+            {this.props.gameTitle ? `${this.props.gameTitle} Encountered an Issue` : 'Game Simulation Halted'}
+          </h3>
+          <p className="mt-2 max-w-md text-xs text-zinc-400 font-mono">
+            {this.state.error?.message || 'A transient rendering or network synchronization error occurred.'}
+          </p>
+          <button
+            onClick={this.handleReset}
+            className="mt-6 flex min-h-[44px] items-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 px-6 py-3 text-xs font-bold text-white shadow-lg hover:from-rose-500 hover:to-pink-500 transition-all hover:scale-105 active:scale-95 cursor-pointer select-none"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Restart Game Engine</span>
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -55,7 +120,7 @@ function generateShortCode(): string {
   return Array.from({ length: 4 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
 }
 
-// Web Audio countdown beep synthesizer — no external deps
+// Web Audio countdown synthesizer
 function playCountdownBeep(ctx: AudioContext, freq: number, duration: number) {
   try {
     const osc = ctx.createOscillator();
@@ -122,7 +187,9 @@ function BanterFeed({ events }: { events: BanterTelemetryEvent[] }) {
             <span className="text-slate-500 mr-1">[{ev.category}]</span>
             <span className="text-cyan-400">{ev.actorName}</span>
             {ev.targetName && (
-              <span className="text-slate-400"> → <span className="text-rose-400">{ev.targetName}</span></span>
+              <span className="text-slate-400">
+                {' '}→ <span className="text-rose-400">{ev.targetName}</span>
+              </span>
             )}
             <span className="ml-1">{ev.message}</span>
           </div>
@@ -136,11 +203,10 @@ function BanterFeed({ events }: { events: BanterTelemetryEvent[] }) {
 // Props
 // ---------------------------------------------------------------------------
 
-interface GameWrapperProps {
+export interface GameWrapperProps {
   config: UltimatumGameConfig;
   /**
-   * Render prop receiving a callback the game must call when it ends.
-   * The game passes its raw score; GameWrapper handles the payout.
+   * Render prop receiving callbacks and active game state.
    */
   children: (props: {
     onGameOver: (score: number, metadata?: Record<string, any>) => void;
@@ -148,11 +214,12 @@ interface GameWrapperProps {
     phase: GamePhase;
     roomCode: string | null;
     players: GameRoomPlayer[];
+    activeLoadout: GameLoadout;
   }) => ReactNode;
 }
 
 // ---------------------------------------------------------------------------
-// GameWrapper — The Universal HOC with In-Game Loadout & Cinematic Lobby
+// GameWrapper — Universal HOC with HiDPI Canvas & Game State Machine
 // ---------------------------------------------------------------------------
 
 export function GameWrapper({ config, children }: GameWrapperProps) {
@@ -178,7 +245,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   // Fetch loadout and personal best on mount / update
   const refreshLoadout = useCallback(() => {
     const currentLoadout = platformStore.getLoadout(userId, config.gameSlug);
-    setActiveLoadout(currentLoadout);
+    setActiveLoadout(currentLoadout || { gameGear: {} });
 
     // Get personal high score from leaderboard
     const game = platformStore.getGameBySlug(config.gameSlug);
@@ -209,7 +276,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
     if (!audioCtxRef.current && typeof window !== 'undefined') {
       const Ctor =
         window.AudioContext ||
-        (window as any).webkitAudioContext;
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (Ctor) audioCtxRef.current = new Ctor();
     }
     if (audioCtxRef.current?.state === 'suspended') {
@@ -219,82 +286,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Phase: LOBBY — Short-Code Generation
-  // -------------------------------------------------------------------------
-
-  const handleHostRoom = useCallback(() => {
-    const code = generateShortCode();
-    const hostPlayer: GameRoomPlayer = {
-      id: user?.id || 'host-local',
-      username: user?.username || 'Host',
-      isHost: true,
-      isReady: true,
-    };
-    setRoomCode(code);
-    setPlayers([hostPlayer]);
-    setPhase('WAITING');
-    getAudioCtx(); // prime audio on click
-  }, [user, getAudioCtx]);
-
-  const handleJoinRoom = useCallback(() => {
-    const code = joinInput.toUpperCase().trim().slice(0, 4);
-    if (code.length !== 4) return;
-    const joiningPlayer: GameRoomPlayer = {
-      id: user?.id || 'player-local',
-      username: user?.username || 'Player',
-      isHost: false,
-      isReady: true,
-    };
-    setRoomCode(code);
-    setPlayers([joiningPlayer]);
-    setPhase('WAITING');
-    getAudioCtx();
-  }, [joinInput, user, getAudioCtx]);
-
-  const handleSoloPlay = useCallback(() => {
-    getAudioCtx();
-    startCountdown();
-  }, [getAudioCtx]);
-
-  const copyCode = useCallback(() => {
-    if (!roomCode) return;
-    navigator.clipboard.writeText(roomCode).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  }, [roomCode]);
-
-  // -------------------------------------------------------------------------
-  // Phase: COUNTDOWN — 3...2...1...BEGIN
-  // -------------------------------------------------------------------------
-
-  const startCountdown = useCallback(() => {
-    setPhase('COUNTDOWN');
-    setCountdown(3);
-  }, []);
-
-  useEffect(() => {
-    if (phase !== 'COUNTDOWN' || countdown === null) return;
-
-    if (countdown === 0) {
-      const ctx = getAudioCtx();
-      if (ctx) playGoFanfare(ctx);
-      setCountdownLabel('BEGIN!');
-      const t = setTimeout(() => {
-        setCountdownLabel('');
-        setPhase('PLAYING');
-      }, 750);
-      return () => clearTimeout(t);
-    }
-
-    const ctx = getAudioCtx();
-    if (ctx) playCountdownBeep(ctx, countdown === 1 ? 880 : 660, 0.18);
-    setCountdownLabel(String(countdown));
-    const t = setTimeout(() => setCountdown((n) => (n !== null ? n - 1 : null)), 850);
-    return () => clearTimeout(t);
-  }, [phase, countdown, getAudioCtx]);
-
-  // -------------------------------------------------------------------------
-  // Prevent Spacebar & Arrow Key Window Scrolling during PLAYING phase
+  // Global Browser Window Scroll Lock during PLAYING phase
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (phase !== 'PLAYING') return;
@@ -330,7 +322,82 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   }, [phase]);
 
   // -------------------------------------------------------------------------
-  // Phase: PLAYING — Banter & Game-Over Hooks
+  // Phase: LOBBY Actions
+  // -------------------------------------------------------------------------
+
+  const handleHostRoom = useCallback(() => {
+    const code = generateShortCode();
+    const hostPlayer: GameRoomPlayer = {
+      id: user?.id || 'host-local',
+      username: user?.username || 'Host',
+      isHost: true,
+      isReady: true,
+    };
+    setRoomCode(code);
+    setPlayers([hostPlayer]);
+    setPhase('WAITING');
+    getAudioCtx();
+  }, [user, getAudioCtx]);
+
+  const handleJoinRoom = useCallback(() => {
+    const code = joinInput.toUpperCase().trim().slice(0, 4);
+    if (code.length !== 4) return;
+    const joiningPlayer: GameRoomPlayer = {
+      id: user?.id || 'player-local',
+      username: user?.username || 'Player',
+      isHost: false,
+      isReady: true,
+    };
+    setRoomCode(code);
+    setPlayers([joiningPlayer]);
+    setPhase('WAITING');
+    getAudioCtx();
+  }, [joinInput, user, getAudioCtx]);
+
+  const startCountdown = useCallback(() => {
+    setPhase('COUNTDOWN');
+    setCountdown(3);
+  }, []);
+
+  const handleSoloPlay = useCallback(() => {
+    getAudioCtx();
+    startCountdown();
+  }, [getAudioCtx, startCountdown]);
+
+  const copyCode = useCallback(() => {
+    if (!roomCode) return;
+    navigator.clipboard.writeText(roomCode).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }, [roomCode]);
+
+  // -------------------------------------------------------------------------
+  // Phase: COUNTDOWN — 3...2...1...BEGIN -> Seamless Transition to PLAYING
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (phase !== 'COUNTDOWN' || countdown === null) return;
+
+    if (countdown === 0) {
+      const ctx = getAudioCtx();
+      if (ctx) playGoFanfare(ctx);
+      setCountdownLabel('BEGIN!');
+      const t = setTimeout(() => {
+        setCountdownLabel('');
+        setPhase('PLAYING');
+      }, 700);
+      return () => clearTimeout(t);
+    }
+
+    const ctx = getAudioCtx();
+    if (ctx) playCountdownBeep(ctx, countdown === 1 ? 880 : 660, 0.18);
+    setCountdownLabel(String(countdown));
+    const t = setTimeout(() => setCountdown((n) => (n !== null ? n - 1 : null)), 800);
+    return () => clearTimeout(t);
+  }, [phase, countdown, getAudioCtx]);
+
+  // -------------------------------------------------------------------------
+  // Phase: PLAYING — Banter & Automated Non-blocking Score Submission
   // -------------------------------------------------------------------------
 
   const onBanterEvent = useCallback(
@@ -358,7 +425,6 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
           ...metadata,
         });
         setPayoutResult(result);
-        // Optimistic balance sync
         platformStore.awardPoints(user?.id || 'user-001', result.coinsEarned);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
@@ -390,7 +456,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   }, []);
 
   // -------------------------------------------------------------------------
-  // RENDER: Phase LOBBY (Cinematic Pre-Match Cockpit)
+  // RENDER: Phase LOBBY
   // -------------------------------------------------------------------------
 
   if (phase === 'LOBBY') {
@@ -400,11 +466,10 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
     const hasAudioTheme = !!activeLoadout.audioTheme;
 
     return (
-      <div className="relative w-full overflow-hidden rounded-3xl border border-cyan-500/20 bg-[#060a14] shadow-[0_0_80px_rgba(6,182,212,0.15)] select-none">
+      <div className="relative w-full overflow-hidden rounded-3xl border border-cyan-500/20 bg-[#060a14] shadow-[0_0_80px_rgba(6,182,212,0.15)] select-none touch-none">
         <style>{`
           @keyframes lobbyGrid { 0% { transform: translateY(0); } 100% { transform: translateY(40px); } }
           @keyframes lobbyPulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.05); } }
-          @keyframes glowPill { 0%, 100% { filter: drop-shadow(0 0 15px rgba(6,182,212,0.5)); } 50% { filter: drop-shadow(0 0 25px rgba(6,182,212,0.8)); } }
         `}</style>
 
         {/* Ambient Dark Nebula Background */}
@@ -421,15 +486,6 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
           }}
         />
 
-        {/* Scanlines Effect */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-30"
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,240,255,0.02) 2px, rgba(0,240,255,0.02) 4px)',
-          }}
-        />
-
         {/* Glowing Nebula Orbs */}
         <div
           className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"
@@ -440,7 +496,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
           style={{ animation: 'lobbyPulse 7s ease-in-out infinite', animationDelay: '1s' }}
         />
 
-        <div className="relative z-10 p-5 sm:p-8 flex flex-col gap-6 max-w-2xl mx-auto">
+        <div className="relative z-10 p-4 sm:p-8 flex flex-col gap-5 sm:gap-6 max-w-2xl mx-auto">
           {/* Header Banner */}
           <div className="text-center space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3.5 py-1 text-xs font-mono font-bold text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
@@ -449,7 +505,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
             </div>
 
             <h1
-              className="text-3xl sm:text-5xl font-black tracking-tight text-white uppercase drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]"
+              className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white uppercase drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]"
               style={{
                 background: 'linear-gradient(180deg, #ffffff 0%, #a5f3fc 60%, #38bdf8 100%)',
                 WebkitBackgroundClip: 'text',
@@ -473,13 +529,11 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
             )}
           </div>
 
-          {/* ----------------------------------------------------------------- */}
-          {/* In-Game 4-Slot Loadout Bar with Direct Customization Modal Access */}
-          {/* ----------------------------------------------------------------- */}
+          {/* 4-Slot Loadout Bar */}
           <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-3.5 backdrop-blur-md space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-400" />
+                <Shield className="w-4 h-4 text-purple-400" />
                 <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
                   Equipped 4-Slot Loadout
                 </span>
@@ -488,97 +542,82 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
               <button
                 type="button"
                 onClick={() => setIsLoadoutModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-purple-500/50 bg-purple-500/20 px-3 py-1 text-xs font-mono font-bold text-purple-300 hover:bg-purple-500 hover:text-white transition-all shadow-sm shadow-purple-500/20 hover:scale-105 active:scale-95"
+                className="min-h-[44px] flex items-center gap-1.5 rounded-lg border border-purple-500/50 bg-purple-500/20 px-3 py-1.5 text-xs font-mono font-bold text-purple-300 hover:bg-purple-500 hover:text-white transition-all shadow-sm cursor-pointer"
               >
                 <Palette className="w-3.5 h-3.5" />
                 <span>Customize & Shop</span>
               </button>
             </div>
 
-            {/* 4-Slot Status Badges */}
+            {/* Badges */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
-              {/* 1. Visual Skin */}
               <div
                 onClick={() => setIsLoadoutModalOpen(true)}
-                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-pink-500/60 ${
-                  hasVisualSkin
-                    ? 'border-pink-500/40 bg-pink-950/30 text-pink-300'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                className={`min-h-[44px] cursor-pointer rounded-xl p-2.5 border transition-all ${
+                  hasVisualSkin ? 'border-pink-500/40 bg-pink-950/30 text-pink-300' : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
                 }`}
               >
                 <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-pink-400">
                   <Eye className="w-3 h-3" />
-                  <span>Visual Skin</span>
+                  <span>Skin</span>
                 </div>
                 <div className="text-xs font-bold text-white mt-0.5 truncate">
-                  {hasVisualSkin ? 'Custom Skin Active' : 'Standard Default'}
+                  {hasVisualSkin ? 'Active' : 'Standard'}
                 </div>
               </div>
 
-              {/* 2. Action Juice */}
               <div
                 onClick={() => setIsLoadoutModalOpen(true)}
-                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-amber-500/60 ${
-                  hasActionJuice
-                    ? 'border-amber-500/40 bg-amber-950/30 text-amber-300'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                className={`min-h-[44px] cursor-pointer rounded-xl p-2.5 border transition-all ${
+                  hasActionJuice ? 'border-amber-500/40 bg-amber-950/30 text-amber-300' : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
                 }`}
               >
                 <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-amber-400">
                   <Sparkles className="w-3 h-3" />
-                  <span>Action Juice</span>
+                  <span>Juice</span>
                 </div>
                 <div className="text-xs font-bold text-white mt-0.5 truncate">
-                  {hasActionJuice ? 'VFX Particles Active' : 'Standard Sparks'}
+                  {hasActionJuice ? 'Active VFX' : 'Standard'}
                 </div>
               </div>
 
-              {/* 3. Game Gear */}
               <div
                 onClick={() => setIsLoadoutModalOpen(true)}
-                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-cyan-500/60 ${
-                  hasGameGear
-                    ? 'border-cyan-500/40 bg-cyan-950/30 text-cyan-300'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                className={`min-h-[44px] cursor-pointer rounded-xl p-2.5 border transition-all ${
+                  hasGameGear ? 'border-cyan-500/40 bg-cyan-950/30 text-cyan-300' : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
                 }`}
               >
                 <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-cyan-400">
                   <Shield className="w-3 h-3" />
-                  <span>Game Gear</span>
+                  <span>Gear</span>
                 </div>
                 <div className="text-xs font-bold text-white mt-0.5 truncate">
-                  {hasGameGear ? 'Stat Booster Active' : 'Standard Gear'}
+                  {hasGameGear ? 'Boosters Active' : 'Standard'}
                 </div>
               </div>
 
-              {/* 4. Audio Theme */}
               <div
                 onClick={() => setIsLoadoutModalOpen(true)}
-                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-purple-500/60 ${
-                  hasAudioTheme
-                    ? 'border-purple-500/40 bg-purple-950/30 text-purple-300'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                className={`min-h-[44px] cursor-pointer rounded-xl p-2.5 border transition-all ${
+                  hasAudioTheme ? 'border-purple-500/40 bg-purple-950/30 text-purple-300' : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
                 }`}
               >
                 <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-purple-400">
                   <Volume2 className="w-3 h-3" />
-                  <span>Audio Theme</span>
+                  <span>Audio</span>
                 </div>
                 <div className="text-xs font-bold text-white mt-0.5 truncate">
-                  {hasAudioTheme ? 'Custom Synthesizer' : 'Arcade 8-Bit'}
+                  {hasAudioTheme ? 'Synth Active' : 'Arcade 8-Bit'}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ----------------------------------------------------------------- */}
-          {/* Launch Buttons & Multiplayer Matchmaking Options                  */}
-          {/* ----------------------------------------------------------------- */}
+          {/* Launch Buttons */}
           <div className="space-y-3">
-            {/* Solo Quick Play (Primary CTA) */}
             <button
               onClick={handleSoloPlay}
-              className="w-full group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 via-indigo-600 to-purple-600 px-6 py-4 text-base font-black text-white shadow-[0_0_35px_rgba(6,182,212,0.4)] hover:shadow-[0_0_50px_rgba(6,182,212,0.6)] hover:scale-[1.02] active:scale-95 transition-all"
+              className="w-full min-h-[52px] group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 via-indigo-600 to-purple-600 px-6 py-4 text-sm sm:text-base font-black text-white shadow-[0_0_35px_rgba(6,182,212,0.4)] hover:shadow-[0_0_50px_rgba(6,182,212,0.6)] hover:scale-[1.02] active:scale-95 transition-all cursor-pointer select-none"
             >
               <Play className="h-5 w-5 fill-current text-white group-hover:scale-110 transition-transform" />
               <span className="tracking-wider">ENTER TOURNAMENT MATCH</span>
@@ -597,16 +636,14 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {/* Host Room */}
                   <button
                     onClick={handleHostRoom}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-950/40 px-4 py-3 text-xs font-bold text-indigo-200 hover:bg-indigo-900/60 hover:text-white transition-all shadow-sm"
+                    className="min-h-[44px] flex items-center justify-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-950/40 px-4 py-3 text-xs font-bold text-indigo-200 hover:bg-indigo-900/60 hover:text-white transition-all shadow-sm cursor-pointer"
                   >
                     <Radio className="h-4 w-4" />
                     <span>Host Private Room</span>
                   </button>
 
-                  {/* Join Room */}
                   <div className="flex gap-1.5">
                     <input
                       type="text"
@@ -615,12 +652,12 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
                       onKeyDown={(e) => e.key === 'Enter' && joinInput.length === 4 && handleJoinRoom()}
                       placeholder="CODE"
                       maxLength={4}
-                      className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900/90 px-3 py-2.5 text-center text-xs font-mono font-black tracking-widest text-white placeholder-zinc-600 outline-none focus:border-cyan-500 uppercase"
+                      className="min-h-[44px] flex-1 rounded-xl border border-zinc-700 bg-zinc-900/90 px-3 py-2.5 text-center text-xs font-mono font-black tracking-widest text-white placeholder-zinc-600 outline-none focus:border-cyan-500 uppercase"
                     />
                     <button
                       onClick={handleJoinRoom}
                       disabled={joinInput.length !== 4}
-                      className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition-all shadow"
+                      className="min-h-[44px] rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition-all shadow cursor-pointer"
                     >
                       Join
                     </button>
@@ -631,7 +668,6 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
           </div>
         </div>
 
-        {/* Embedded Pre-Match InGameLoadoutModal */}
         <InGameLoadoutModal
           isOpen={isLoadoutModalOpen}
           onClose={() => {
@@ -647,12 +683,12 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   }
 
   // -------------------------------------------------------------------------
-  // RENDER: Phase WAITING (Host room open)
+  // RENDER: Phase WAITING
   // -------------------------------------------------------------------------
 
   if (phase === 'WAITING') {
     return (
-      <div className="flex min-h-[520px] items-center justify-center bg-zinc-950 px-4 py-12">
+      <div className="flex min-h-[520px] items-center justify-center bg-zinc-950 px-4 py-12 select-none touch-none">
         <div className="w-full max-w-sm space-y-6 text-center">
           <div className="space-y-1">
             <div className="text-[11px] font-mono font-bold text-zinc-500 uppercase">Room Code</div>
@@ -660,7 +696,10 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
               <span className="text-5xl font-black font-mono tracking-[0.2em] text-white">
                 {roomCode}
               </span>
-              <button onClick={copyCode} className="text-zinc-400 hover:text-white transition-colors">
+              <button
+                onClick={copyCode}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
                 {copied ? (
                   <CheckCircle className="h-5 w-5 text-emerald-400" />
                 ) : (
@@ -671,7 +710,6 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
             <p className="text-xs text-zinc-500">Share this code with up to {config.maxPlayers ?? 2} players</p>
           </div>
 
-          {/* Players Roster */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 space-y-2">
             {players.map((p) => (
               <div key={p.id} className="flex items-center justify-between">
@@ -698,10 +736,9 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
             <span>Waiting for players to connect…</span>
           </div>
 
-          {/* Host can start early */}
           <button
             onClick={startCountdown}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white shadow-xl hover:scale-105 transition-all"
+            className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white shadow-xl hover:scale-105 transition-all cursor-pointer"
           >
             <Play className="h-4 w-4" />
             <span>Start Game Now</span>
@@ -718,21 +755,21 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   if (phase === 'COUNTDOWN') {
     const isGo = countdownLabel === 'BEGIN!';
     return (
-      <div className="flex min-h-[520px] items-center justify-center bg-zinc-950">
+      <div className="flex min-h-[520px] items-center justify-center bg-zinc-950 select-none touch-none">
         <div
           key={countdownLabel}
           className="text-center animate-in zoom-in-50 duration-200"
           style={{ animation: 'countdown-pulse 0.2s ease-out' }}
         >
           <div
-            className={`text-[120px] font-black font-mono leading-none tracking-tighter transition-colors ${
+            className={`text-[100px] sm:text-[140px] font-black font-mono leading-none tracking-tighter transition-colors ${
               isGo ? 'text-emerald-400 drop-shadow-[0_0_40px_rgba(52,211,153,0.8)]' : 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]'
             }`}
           >
             {countdownLabel}
           </div>
           {!isGo && (
-            <div className="mt-4 text-[11px] font-mono font-bold text-zinc-600 uppercase tracking-widest">
+            <div className="mt-4 text-xs sm:text-sm font-mono font-bold text-zinc-600 uppercase tracking-widest">
               Get ready…
             </div>
           )}
@@ -748,27 +785,32 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   }
 
   // -------------------------------------------------------------------------
-  // RENDER: Phase PLAYING — Game Viewport with Banter Overlay
+  // RENDER: Phase PLAYING
   // -------------------------------------------------------------------------
 
   if (phase === 'PLAYING') {
     return (
-      <div className="relative w-full">
-        {/* Game Viewport — children render here */}
-        {children({ onGameOver, onBanterEvent, phase, roomCode, players })}
-
-        {/* Live Banter Telemetry Feed — overlaid, pointer-events-none */}
-        <BanterFeed events={banterEvents} />
-      </div>
+      <GameErrorBoundary gameTitle={config.title} onReset={handlePlayAgain}>
+        <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl select-none" style={{ touchAction: 'none' }}>
+          {children({ onGameOver, onBanterEvent, phase, roomCode, players, activeLoadout })}
+          <BanterFeed events={banterEvents} />
+        </div>
+      </GameErrorBoundary>
     );
   }
 
   // -------------------------------------------------------------------------
-  // RENDER: Phase RESULTS — Unified Tournament Payout Screen
+  // RENDER: Phase RESULTS
   // -------------------------------------------------------------------------
 
   const rankOrdinal = payoutResult
-    ? payoutResult.rank === 1 ? '1ST' : payoutResult.rank === 2 ? '2ND' : payoutResult.rank === 3 ? '3RD' : `${payoutResult.rank}TH`
+    ? payoutResult.rank === 1
+      ? '1ST'
+      : payoutResult.rank === 2
+      ? '2ND'
+      : payoutResult.rank === 3
+      ? '3RD'
+      : `${payoutResult.rank}TH`
     : null;
 
   const medalColor =
@@ -781,24 +823,21 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
       : 'text-zinc-400';
 
   return (
-    <div className="flex min-h-[400px] sm:min-h-[520px] items-center justify-center bg-zinc-950 px-3 sm:px-4 py-8 sm:py-12">
+    <div className="flex min-h-[400px] sm:min-h-[520px] items-center justify-center bg-zinc-950 px-3 sm:px-4 py-8 sm:py-12 select-none">
       <div className="w-full max-w-sm space-y-5 sm:space-y-6">
-        {/* Game Over Header */}
         <div className="text-center space-y-1">
           <div className="text-[10px] sm:text-[11px] font-mono font-bold text-zinc-500 uppercase">Round Complete</div>
           <h2 className="text-2xl sm:text-3xl font-black text-white">{config.title}</h2>
         </div>
 
-        {/* Score Card */}
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-6 text-center space-y-4">
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-6 text-center space-y-4 shadow-xl">
           {isSubmittingScore ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-              <span className="text-xs font-mono text-zinc-400">Calculating rank & payout…</span>
+              <span className="text-xs font-mono text-zinc-400">Recording score & calculating rewards…</span>
             </div>
           ) : payoutResult ? (
             <>
-              {/* Rank Badge */}
               <div className={`text-5xl sm:text-6xl font-black font-mono ${medalColor}`}>
                 {rankOrdinal}
               </div>
@@ -825,7 +864,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
               )}
             </>
           ) : (
-            <div className="py-4 text-xs text-zinc-500">Score submission unavailable</div>
+            <div className="py-4 text-xs text-zinc-500 font-mono">Score submission recorded</div>
           )}
         </div>
 
@@ -833,7 +872,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
         <div className="space-y-2">
           <button
             onClick={handlePlayAgain}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 text-sm font-bold text-white shadow-xl hover:scale-105 transition-all tap-target"
+            className="w-full min-h-[48px] flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 text-sm font-bold text-white shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
           >
             <RotateCcw className="h-4 w-4" />
             <span>Play Again</span>
@@ -841,7 +880,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
 
           <Link
             href="/games/shop"
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-950/40 px-5 sm:px-6 py-3 sm:py-3.5 text-sm font-bold text-purple-200 hover:bg-purple-900/60 hover:text-white transition-all tap-target"
+            className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-950/40 px-5 sm:px-6 py-3 text-xs sm:text-sm font-bold text-purple-200 hover:bg-purple-900/60 hover:text-white transition-all"
           >
             <ShoppingBag className="h-4 w-4" />
             <span>Spend Coins in Cosmetics Shop</span>
@@ -849,14 +888,14 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
 
           <Link
             href="/games"
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 sm:px-6 py-2.5 sm:py-3 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all tap-target"
+            className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 sm:px-6 py-2.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all"
           >
             <Flame className="h-3.5 w-3.5" />
             <span>Back to The Arcade Vault</span>
           </Link>
         </div>
 
-        {/* Banter Log — post-match review */}
+        {/* Telemetry Log */}
         {banterEvents.length > 0 && (
           <details className="group rounded-2xl border border-zinc-800 bg-zinc-900/50">
             <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-xs font-mono font-bold text-zinc-400 hover:text-white transition-colors">

@@ -933,6 +933,7 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     const scaleX = 800 / rect.width;
     const scaleY = 600 / rect.height;
 
@@ -954,6 +955,10 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
   };
 
   const handlePointerUp = () => {
+    isPointerDownRef.current = false;
+  };
+
+  const handlePointerCancel = () => {
     isPointerDownRef.current = false;
   };
 
@@ -1254,8 +1259,10 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
           onTouchMove={handleTouchMove}
-          className="h-full w-full object-contain touch-none"
+          className="h-full w-full object-contain touch-none select-none"
+          style={{ touchAction: 'none' }}
         />
 
         {/* Start / Launch Overlay */}

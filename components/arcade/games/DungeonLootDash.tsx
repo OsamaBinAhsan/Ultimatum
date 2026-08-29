@@ -119,7 +119,7 @@ interface DungeonItem {
 
 export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: DungeonLootProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [gameState, setGameState] = useState<'idle' | 'playing' | 'gameover'>('idle');
+  const [gameState, setGameState] = useState<'idle' | 'playing' | 'gameover'>('playing');
   const [score, setScore] = useState(0);
   const [distance, setDistance] = useState(0);
   const [lives, setLives] = useState(3);
@@ -618,8 +618,8 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
       </div>
 
       {/* Canvas */}
-      <div className="relative aspect-[4/3] w-full max-h-[580px] overflow-hidden rounded-xl border border-zinc-800 bg-black">
-        <canvas ref={canvasRef} width={800} height={600} className="h-full w-full object-contain" />
+      <div className="relative aspect-[4/3] w-full max-h-[580px] overflow-hidden rounded-xl border border-zinc-800 bg-black select-none" style={{ touchAction: 'none' }}>
+        <canvas ref={canvasRef} width={800} height={600} className="h-full w-full object-contain touch-none" style={{ touchAction: 'none' }} />
 
         {gameState === 'idle' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-sm">
@@ -687,15 +687,31 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
         )}
       </div>
 
-      {/* Quick Action bar for combat */}
-      <div className="flex items-center justify-between rounded-xl bg-zinc-900/60 p-2 border border-zinc-800">
-        <span className="text-xs text-zinc-400 font-mono">Combat:</span>
+      {/* Quick Action bar for mobile & desktop controls (>=48px touch targets) */}
+      <div className="grid grid-cols-3 gap-2 rounded-xl bg-zinc-900/60 p-2 border border-zinc-800 select-none">
         <button
-          onClick={slash}
-          className="flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-2 text-xs font-bold text-white active:scale-95 transition-all shadow-md"
+          type="button"
+          onPointerDown={jump}
+          className="min-h-[48px] flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-600 px-3 py-2 text-xs font-bold text-white active:scale-95 transition-all shadow-md cursor-pointer select-none"
+        >
+          <span>⬆ JUMP</span>
+        </button>
+        <button
+          type="button"
+          onPointerDown={() => slide(true)}
+          onPointerUp={() => slide(false)}
+          onPointerCancel={() => slide(false)}
+          className="min-h-[48px] flex items-center justify-center gap-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-bold text-zinc-200 active:scale-95 transition-all shadow-md cursor-pointer select-none"
+        >
+          <span>⬇ SLIDE</span>
+        </button>
+        <button
+          type="button"
+          onPointerDown={slash}
+          className="min-h-[48px] flex items-center justify-center gap-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 px-3 py-2 text-xs font-bold text-white active:scale-95 transition-all shadow-md cursor-pointer select-none"
         >
           <Sword className="w-4 h-4" />
-          <span>[X] Sword Slash Attack</span>
+          <span>[X] SLASH</span>
         </button>
       </div>
 

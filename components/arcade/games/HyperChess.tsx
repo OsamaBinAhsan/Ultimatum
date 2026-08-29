@@ -1673,7 +1673,7 @@ export default function HyperChess({ gameId, gameTitle, onGameOver, onBanterEven
                   onClick={() => useAbility(ability)}
                   disabled={!canAfford || isGameOver}
                   title={ABILITY_DESCRIPTions[ability]}
-                  className={`flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
+                  className={`min-h-[44px] flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all cursor-pointer select-none ${
                     canAfford
                       ? 'border-cyan-500/50 bg-cyan-950/50 text-cyan-300 hover:bg-cyan-900/60 shadow-md shadow-cyan-500/10 hover:scale-[1.02]'
                       : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 cursor-not-allowed'
