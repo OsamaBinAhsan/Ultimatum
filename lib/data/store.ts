@@ -9,6 +9,10 @@ import {
   INITIAL_LEADERBOARD,
   INITIAL_PROFILES,
   INITIAL_COMMENTS,
+  INITIAL_SHOP_ITEMS,
+  INITIAL_PLAYER_INVENTORY,
+  INITIAL_SERIALS_POOL,
+  INITIAL_PLAYER_REDEMPTIONS,
 } from './mock-data';
 import {
   Game,
@@ -22,6 +26,11 @@ import {
   Profile,
   Comment,
   PostStatus,
+  ShopItem,
+  PlayerInventoryItem,
+  GameLoadout,
+  RewardSerial,
+  PlayerRedemption,
 } from '@/lib/types';
 
 class PlatformStore {
@@ -57,6 +66,7 @@ class PlatformStore {
       localStorage.setItem('ultimatum_leaderboard', JSON.stringify(this.leaderboard));
       localStorage.setItem('ultimatum_profiles', JSON.stringify(this.profiles));
       localStorage.setItem('ultimatum_comments', JSON.stringify(this.comments));
+      localStorage.setItem('ultimatum_player_inventory', JSON.stringify(this.playerInventory));
       if (this.currentUser) {
         localStorage.setItem('ultimatum_current_user', JSON.stringify(this.currentUser));
       } else {
@@ -70,6 +80,10 @@ class PlatformStore {
   private loadFromLocalStorage() {
     if (typeof window === 'undefined') return;
     try {
+      const inv = localStorage.getItem('ultimatum_player_inventory');
+      if (inv) {
+        this.playerInventory = JSON.parse(inv);
+      }
       const g = localStorage.getItem('ultimatum_games');
       if (g) {
         const storedGames: Game[] = JSON.parse(g);
@@ -815,7 +829,319 @@ class PlatformStore {
     const count = this.autoPublishScheduled();
     return { publishedCount: count };
   }
+
+
+  // ---------------------------------------------------------------------------
+  // Complete Master Shop, Rewards & Redemptions Engine
+  // ---------------------------------------------------------------------------
+  private shopItems: ShopItem[] = [...INITIAL_SHOP_ITEMS];
+  private playerInventory: PlayerInventoryItem[] = [...INITIAL_PLAYER_INVENTORY];
+  private serialsPool: RewardSerial[] = [...INITIAL_SERIALS_POOL];
+  private playerRedemptions: PlayerRedemption[] = [...INITIAL_PLAYER_REDEMPTIONS];
+
+  getShopItems(filter?: { gameId?: string | null; category?: string | null; slotType?: string | null; isPublicOnly?: boolean } | string | null): ShopItem[] {
+    let list = this.shopItems.filter((i) => i.is_active);
+
+    if (typeof filter === 'string') {
+      const g = filter.toLowerCase();
+      return list.filter((i) => !i.target_game_id && !i.game_id || (i.target_game_id || i.game_id)?.toLowerCase() === g);
+    }
+
+    if (filter) {
+      if (filter.isPublicOnly) {
+        list = list.filter((i) => i.is_public);
+      }
+      if (filter.category && filter.category !== 'all') {
+        list = list.filter((i) => i.category === filter.category);
+      }
+      if (filter.gameId && filter.gameId !== 'all') {
+        const normalized = filter.gameId.toLowerCase();
+        list = list.filter((i) => (i.target_game_id || i.game_id)?.toLowerCase() === normalized);
+      }
+      if (filter.slotType && filter.slotType !== 'all') {
+        list = list.filter((i) => i.slot_type === filter.slotType);
+      }
+    }
+
+    return list;
+  }
+
+  getShopItemById(id: string): ShopItem | undefined {
+    return this.shopItems.find((i) => i.id === id || i.slug === id);
+  }
+
+  createShopItem(item: ShopItem): { success: boolean; item: ShopItem } {
+    const existing = this.getShopItemById(item.id);
+    if (existing) {
+      return this.updateShopItem(item);
+    }
+    const newItem: ShopItem = {
+      ...item,
+      created_at: new Date().toISOString(),
+    };
+    this.shopItems.unshift(newItem);
+    this.saveToLocalStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('shop-updated'));
+    }
+    return { success: true, item: newItem };
+  }
+
+  updateShopItem(item: ShopItem): { success: boolean; item: ShopItem } {
+    const idx = this.shopItems.findIndex((i) => i.id === item.id || i.slug === item.slug);
+    if (idx !== -1) {
+      this.shopItems[idx] = { ...this.shopItems[idx], ...item };
+    } else {
+      this.shopItems.push(item);
+    }
+    this.saveToLocalStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('shop-updated'));
+    }
+    return { success: true, item };
+  }
+
+  deleteShopItem(id: string): { success: boolean } {
+    this.shopItems = this.shopItems.filter((i) => i.id !== id && i.slug !== id);
+    this.saveToLocalStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('shop-updated'));
+    }
+    return { success: true };
+  }
+
+  addSerialsPool(itemId: string, codes: string[]): { success: boolean; addedCount: number } {
+    let added = 0;
+    codes.forEach((code) => {
+      const clean = code.trim();
+      if (clean && !this.serialsPool.some((s) => s.serial_code === clean)) {
+        this.serialsPool.push({
+          id: Date.now() + Math.floor(Math.random() * 10000),
+          item_id: itemId,
+          serial_code: clean,
+          is_redeemed: false,
+        });
+        added++;
+      }
+    });
+    this.saveToLocalStorage();
+    return { success: true, addedCount: added };
+  }
+
+  getSerialsCount(itemId: string): { total: number; available: number } {
+    const all = this.serialsPool.filter((s) => s.item_id === itemId);
+    return {
+      total: all.length,
+      available: all.filter((s) => !s.is_redeemed).length,
+    };
+  }
+
+  getInventory(playerId: string): PlayerInventoryItem[] {
+    return this.playerInventory
+      .filter((inv) => inv.player_id === playerId)
+      .map((inv) => ({
+        ...inv,
+        item: this.getShopItemById(inv.item_id),
+      }));
+  }
+
+  getRedemptions(playerId: string): PlayerRedemption[] {
+    return this.playerRedemptions
+      .filter((rdm) => rdm.player_id === playerId)
+      .map((rdm) => ({
+        ...rdm,
+        item: this.getShopItemById(rdm.item_id),
+      }))
+      .reverse();
+  }
+
+  getEquippedItems(playerId: string, gameId?: string): PlayerInventoryItem[] {
+    const inv = this.getInventory(playerId).filter((i) => i.is_equipped);
+    if (!gameId) return inv;
+    const normalized = gameId.toLowerCase();
+    return inv.filter((i) => !(i.item?.target_game_id || i.item?.game_id) || (i.item.target_game_id || i.item.game_id)?.toLowerCase() === normalized);
+  }
+
+  getLoadout(playerId: string, gameSlug?: string): GameLoadout {
+    const equipped = this.getEquippedItems(playerId, gameSlug);
+    const loadout: GameLoadout = {
+      gameGear: {},
+      equippedItems: [],
+    };
+
+    equipped.forEach((inv) => {
+      const item = inv.item;
+      if (!item) return;
+      loadout.equippedItems?.push(item);
+      let parsedMeta: any = {};
+      try {
+        parsedMeta = typeof item.metadata_json === 'string' ? JSON.parse(item.metadata_json) : item.metadata_json;
+      } catch {
+        parsedMeta = {};
+      }
+
+      if (item.slot_type === 'VISUAL_SKIN') loadout.visualSkin = parsedMeta;
+      if (item.slot_type === 'ACTION_JUICE') loadout.actionJuice = parsedMeta;
+      if (item.slot_type === 'AUDIO_THEME') loadout.audioTheme = parsedMeta;
+      if (item.slot_type === 'GAME_GEAR' && parsedMeta.stat && parsedMeta.value !== undefined) {
+        loadout.gameGear[parsedMeta.stat] = parsedMeta.value;
+      }
+    });
+
+    return loadout;
+  }
+
+  equipItem(playerId: string, itemId: string): { success: boolean; error?: string } {
+    const targetItem = this.getShopItemById(itemId);
+    if (!targetItem) return { success: false, error: 'Item not found in catalog.' };
+
+    const invIndex = this.playerInventory.findIndex(
+      (i) => i.player_id === playerId && i.item_id === targetItem.id
+    );
+    if (invIndex === -1) return { success: false, error: 'You do not own this item.' };
+
+    // Unequip all existing items with matching slot_type & target_game_id
+    this.playerInventory.forEach((inv) => {
+      if (inv.player_id === playerId) {
+        const otherItem = this.getShopItemById(inv.item_id);
+        if (
+          otherItem &&
+          otherItem.slot_type === targetItem.slot_type &&
+          (otherItem.target_game_id || otherItem.game_id || null) === (targetItem.target_game_id || targetItem.game_id || null)
+        ) {
+          inv.is_equipped = false;
+        }
+      }
+    });
+
+    this.playerInventory[invIndex].is_equipped = true;
+    this.saveToLocalStorage();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { playerId, itemId } }));
+      window.dispatchEvent(new CustomEvent('loadout-updated', { detail: { playerId, itemId } }));
+    }
+
+    return { success: true };
+  }
+
+  unequipItem(playerId: string, itemId: string): { success: boolean } {
+    const invIndex = this.playerInventory.findIndex(
+      (i) => i.player_id === playerId && i.item_id === itemId
+    );
+    if (invIndex !== -1) {
+      this.playerInventory[invIndex].is_equipped = false;
+      this.saveToLocalStorage();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { playerId, itemId } }));
+        window.dispatchEvent(new CustomEvent('loadout-updated', { detail: { playerId, itemId } }));
+      }
+    }
+    return { success: true };
+  }
+
+  redeemItem(
+    playerId: string,
+    itemId: string
+  ): { success: boolean; error?: string; newBalance?: number; item?: ShopItem; deliveredContent?: string; redemption?: PlayerRedemption } {
+    const item = this.getShopItemById(itemId);
+    if (!item) return { success: false, error: 'Reward item not found in catalog.' };
+
+    if (!item.is_active || !item.is_public) {
+      return { success: false, error: 'This reward is currently unavailable.' };
+    }
+
+    const userPoints = this.currentUser?.points ?? 500;
+    if (userPoints < item.price_coins) {
+      return {
+        success: false,
+        error: `Insufficient coins! Need ${item.price_coins} Coins (you have ${userPoints}).`,
+      };
+    }
+
+    // Stock check
+    if (item.stock_remaining === 0) {
+      return { success: false, error: 'This item is out of stock!' };
+    }
+
+    // Single-use serial pool dispatching
+    let deliveredContent = 'REDEEMED_SUCCESSFULLY';
+    let meta: any = {};
+    try {
+      meta = typeof item.metadata_json === 'string' ? JSON.parse(item.metadata_json) : item.metadata_json;
+    } catch {}
+
+    if (item.category === 'SPONSORED_PERK' || item.category === 'AFFILIATE_VOUCHER') {
+      const availSerial = this.serialsPool.find((s) => s.item_id === item.id && !s.is_redeemed);
+      if (availSerial) {
+        availSerial.is_redeemed = true;
+        availSerial.redeemed_by_user_id = playerId;
+        availSerial.redeemed_at = new Date().toISOString();
+        deliveredContent = availSerial.serial_code;
+      } else {
+        deliveredContent = `${item.slug.toUpperCase()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      }
+    } else if (item.category === 'DIGITAL_DOWNLOAD') {
+      deliveredContent = meta.downloadUrl || '/downloads/reward_package.zip';
+    } else {
+      deliveredContent = `Equipped ${item.name} to player inventory.`;
+    }
+
+    // Deduct points
+    this.awardPoints(playerId, -item.price_coins);
+
+    // Decrease stock if not unlimited
+    if (item.stock_remaining > 0) {
+      item.stock_remaining -= 1;
+    }
+
+    // Add to inventory (if not already owned)
+    const existingInv = this.playerInventory.find((i) => i.player_id === playerId && i.item_id === item.id);
+    if (!existingInv) {
+      this.playerInventory.push({
+        id: Date.now(),
+        player_id: playerId,
+        item_id: item.id,
+        is_equipped: item.category === 'GAME_LOADOUT' || item.category === 'PROFILE_COSMETIC',
+        purchased_at: new Date().toISOString(),
+      });
+    }
+
+    // Record in player_redemptions vault
+    const redemption: PlayerRedemption = {
+      id: `rdm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      player_id: playerId,
+      item_id: item.id,
+      coins_spent: item.price_coins,
+      delivered_content: deliveredContent,
+      redeemed_at: new Date().toISOString(),
+      item,
+    };
+    this.playerRedemptions.push(redemption);
+
+    this.saveToLocalStorage();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('balance-updated', { detail: { points: this.currentUser?.points } }));
+      window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { playerId, itemId: item.id } }));
+      window.dispatchEvent(new CustomEvent('loadout-updated', { detail: { playerId, itemId: item.id } }));
+      window.dispatchEvent(new CustomEvent('redemptions-updated', { detail: { redemption } }));
+    }
+
+    return {
+      success: true,
+      item,
+      newBalance: this.currentUser?.points || 0,
+      deliveredContent,
+      redemption,
+    };
+  }
+
+  // Alias purchaseItem to redeemItem for backward compatibility
+  purchaseItem(playerId: string, itemId: string) {
+    return this.redeemItem(playerId, itemId);
+  }
+
 }
 
 export const platformStore = new PlatformStore();
-

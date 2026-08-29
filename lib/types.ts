@@ -274,3 +274,82 @@ export interface PayoutProcessResult {
 }
 
 
+
+
+// ---------------------------------------------------------------------------
+// Unified Shop, Rewards & Redemptions Engine Types
+// ---------------------------------------------------------------------------
+
+export type ShopCategory =
+  | 'GAME_LOADOUT'
+  | 'PROFILE_COSMETIC'
+  | 'SPONSORED_PERK'
+  | 'AFFILIATE_VOUCHER'
+  | 'DIGITAL_DOWNLOAD';
+
+export type ShopSlotType =
+  | 'VISUAL_SKIN'
+  | 'ACTION_JUICE'
+  | 'GAME_GEAR'
+  | 'AUDIO_THEME'
+  | 'AVATAR_FRAME'
+  | 'PROFILE_TITLE';
+
+export type ItemTier = 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  category: ShopCategory;
+  target_game_id?: string | null;
+  game_id?: string | null; // alias for target_game_id
+  slot_type?: ShopSlotType | null;
+  tier: ItemTier;
+  price_coins: number;
+  metadata_json: string;
+  metadata?: Record<string, any>;
+  stock_remaining: number; // -1 = unlimited
+  is_active: boolean;
+  is_public: boolean;
+  asset_url?: string | null;
+  created_at?: string;
+  serials_count?: number;
+}
+
+export interface RewardSerial {
+  id: number;
+  item_id: string;
+  serial_code: string;
+  is_redeemed: boolean;
+  redeemed_by_user_id?: string | null;
+  redeemed_at?: string | null;
+}
+
+export interface PlayerInventoryItem {
+  id: number | string;
+  player_id: string;
+  item_id: string;
+  is_equipped: boolean;
+  purchased_at: string;
+  item?: ShopItem;
+}
+
+export interface PlayerRedemption {
+  id: string;
+  player_id: string;
+  item_id: string;
+  coins_spent: number;
+  delivered_content: string; // Serial code, voucher URL, download link, or confirmation text
+  redeemed_at: string;
+  item?: ShopItem;
+}
+
+export interface GameLoadout {
+  visualSkin?: any;
+  actionJuice?: any;
+  gameGear: Record<string, number>;
+  audioTheme?: any;
+  equippedItems?: ShopItem[];
+}

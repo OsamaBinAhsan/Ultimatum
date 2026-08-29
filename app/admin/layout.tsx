@@ -97,7 +97,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 antialiased font-sans">
       {/* Desktop Sidebar */}
-      <aside className="w-72 flex-shrink-0 border-r border-slate-800/80 bg-slate-950/95 flex flex-col justify-between hidden lg:flex sticky top-0 h-screen overflow-y-auto">
+      <aside className="w-60 xl:w-72 flex-shrink-0 border-r border-slate-800/80 bg-slate-950/95 flex flex-col justify-between hidden lg:flex sticky top-0 h-screen overflow-y-auto">
         <div className="p-6 space-y-6">
           {/* Logo & Branding */}
           <Link href="/admin" className="flex items-center gap-3 group">
@@ -254,20 +254,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main Content Viewport */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         {/* Top Navbar */}
-        <header className="flex h-16 items-center justify-between border-b border-slate-800/80 px-6 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
-          <div className="flex items-center gap-4">
+        <header className="flex h-16 items-center justify-between border-b border-slate-800/80 px-4 sm:px-6 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
+          <div className="flex items-center gap-3 sm:gap-4">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 hover:text-white lg:hidden"
+              aria-label="Open Admin Menu"
+              className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 hover:text-white lg:hidden tap-target flex items-center justify-center"
             >
               <Menu className="h-5 w-5" />
             </button>
 
-            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-mono font-medium text-emerald-400 border border-emerald-500/20">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>SQL SERVER CONNECTED &bull; NEXT.JS 16</span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-mono font-medium text-emerald-400 border border-emerald-500/20">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+              <span className="hidden sm:inline">SQL SERVER CONNECTED &bull; NEXT.JS 16</span>
+              <span className="sm:hidden">CONNECTED</span>
             </span>
           </div>
 
@@ -275,7 +277,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link
               href="/"
               target="_blank"
-              className="text-xs font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
+              className="text-xs font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 tap-target"
             >
               <span>Public Hubs</span>
               <ExternalLink className="h-3 w-3" />
@@ -284,7 +286,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Dynamic Page Container */}
-        <div className="flex-1 p-6 sm:p-8 md:p-10 max-w-7xl w-full mx-auto">
+        <div className="flex-1 p-3.5 sm:p-6 md:p-8 lg:p-10 max-w-7xl w-full mx-auto">
           {!isAdmin ? (
             <div className="rounded-3xl border border-amber-500/40 bg-slate-900/90 p-8 text-center space-y-4 max-w-lg mx-auto my-12 shadow-2xl backdrop-blur-xl">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">

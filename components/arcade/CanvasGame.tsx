@@ -96,21 +96,15 @@ export function CanvasGame({ gameId, gameTitle, gameSlug, onScoreSubmitted }: Ca
 
   // --- Hyper-Chess ---
   if (normalized.includes('hyper-chess') || normalized.includes('chess')) {
-    const config = getArcadeGameConfig('hyper-chess')!;
     return (
-      <GameWrapper config={config}>
-        {({ onGameOver, onBanterEvent, phase }) =>
-          phase === 'PLAYING' ? (
-            <HyperChessEngine
-              gameId={gameId}
-              gameTitle={gameTitle}
-              onGameOver={onGameOver}
-              onBanterEvent={onBanterEvent}
-              onScoreSubmitted={onScoreSubmitted}
-            />
-          ) : null
-        }
-      </GameWrapper>
+      <HyperChessEngine
+        gameId={gameId}
+        gameTitle={gameTitle}
+        onScoreSubmitted={onScoreSubmitted}
+        onGameOver={(score) => {
+          onScoreSubmitted?.(score);
+        }}
+      />
     );
   }
 

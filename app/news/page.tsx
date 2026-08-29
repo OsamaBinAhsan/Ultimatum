@@ -38,16 +38,16 @@ export default function NewsHubPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-red-500/30 bg-gradient-to-r from-zinc-950 via-red-950/25 to-zinc-950 p-8 sm:p-12 shadow-2xl">
+      <div className="relative overflow-hidden rounded-3xl border border-red-500/30 bg-gradient-to-r from-zinc-950 via-red-950/25 to-zinc-950 p-5 sm:p-8 md:p-12 shadow-2xl">
         <div className="relative z-10 max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-mono font-bold text-red-400">
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[10px] sm:text-xs font-mono font-bold text-red-400">
             <Zap className="w-3.5 h-3.5" />
             <span>DISPATCH WIRE & EDITORIAL ESSAYS</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
             The Newsroom & Blogs
           </h1>
-          <p className="text-base text-zinc-300 leading-relaxed">
+          <p className="text-sm sm:text-base text-zinc-300 leading-relaxed">
             Real-time gaming headlines, handheld silicon thermal benchmarks, tournament patch notes, and cultural essays covering the modern digital lifestyle.
           </p>
         </div>
@@ -57,20 +57,20 @@ export default function NewsHubPage() {
       {breaking && (
         <Link
           href={`/news/${breaking.slug}`}
-          className="group relative block overflow-hidden rounded-3xl border border-red-500/50 bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 p-6 sm:p-8 shadow-2xl hover:border-red-400 transition-all"
+          className="group relative block overflow-hidden rounded-3xl border border-red-500/50 bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 p-4 sm:p-6 md:p-8 shadow-2xl hover:border-red-400 transition-all"
         >
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="flex h-2.5 w-2.5 rounded-full bg-red-500 animate-ping" />
-                <span className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">
+                <span className="text-[10px] sm:text-xs font-mono font-bold text-red-400 uppercase tracking-widest">
                   BREAKING DISPATCH
                 </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   {new Date(breaking.published_at).toLocaleDateString()}
                 </span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white group-hover:text-red-400 transition-colors">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white group-hover:text-red-400 transition-colors">
                 {breaking.title}
               </h2>
               <p className="text-xs sm:text-sm text-zinc-300 max-w-3xl leading-relaxed">
@@ -78,8 +78,8 @@ export default function NewsHubPage() {
               </p>
             </div>
 
-            <div className="flex-shrink-0">
-              <span className="flex items-center gap-1.5 rounded-2xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-red-600/30 group-hover:bg-red-500 transition-all">
+            <div className="flex-shrink-0 w-full sm:w-auto">
+              <span className="flex items-center justify-center gap-1.5 rounded-2xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-red-600/30 group-hover:bg-red-500 transition-all tap-target">
                 <span>Read Story</span>
                 <ArrowRight className="w-4 h-4" />
               </span>
@@ -90,12 +90,12 @@ export default function NewsHubPage() {
 
       {/* Filter Strip */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center border-b border-zinc-800 pb-4">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+              className={`rounded-xl px-3 sm:px-4 py-2 text-xs font-bold transition-all tap-target ${
                 selectedCategory === cat.id
                   ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
                   : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white'
@@ -106,20 +106,20 @@ export default function NewsHubPage() {
           ))}
         </div>
 
-        <div className="relative max-w-sm w-full">
+        <div className="relative max-w-md w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
             type="text"
-            placeholder="Search news, hardware, esports..."
+            placeholder="Search news, esports, tech..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/90 py-2 pl-10 pr-4 text-xs text-white placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+            className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/90 py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-zinc-500 focus:border-red-500 focus:outline-none tap-target"
           />
         </div>
       </div>
 
-      {/* News Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Articles Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
         {filtered.map((article) => (
           <Link
             key={article.id}

@@ -135,26 +135,44 @@ export default function SingleReviewPage() {
       </header>
 
       {/* Hero Image with Affiliate Quick CTA */}
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl border border-zinc-800 shadow-2xl">
-        <Image
-          src={review.hero_image_url}
-          alt={review.product_name}
-          fill
-          priority
-          sizes="(max-width: 1024px) 100vw, 960px"
-          className="object-cover"
-        />
+      <div className="space-y-3">
+        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl border border-zinc-800 shadow-2xl">
+          <Image
+            src={review.hero_image_url}
+            alt={review.product_name}
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 960px"
+            className="object-cover"
+          />
 
+          {review.affiliate_link && (
+            <div className="hidden sm:block absolute bottom-4 right-4 sm:bottom-6 sm:right-6">
+              <a
+                href={review.affiliate_link}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-5 sm:px-6 py-3 text-xs sm:text-sm font-bold text-zinc-950 shadow-2xl hover:from-amber-300 hover:to-orange-400 transition-all hover:scale-105 tap-target"
+              >
+                <ShoppingBag className="w-4 h-4 flex-shrink-0" />
+                <span>Check Current Best Price</span>
+                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile-only prominent CTA button */}
         {review.affiliate_link && (
-          <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6">
+          <div className="sm:hidden">
             <a
               href={review.affiliate_link}
               target="_blank"
               rel="noopener noreferrer sponsored"
-              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-6 py-3 text-sm font-bold text-zinc-950 shadow-2xl hover:from-amber-300 hover:to-orange-400 transition-all hover:scale-105"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3.5 text-xs font-bold text-zinc-950 shadow-lg tap-target"
             >
               <ShoppingBag className="w-4 h-4" />
-              <span>Check Current Best Price</span>
+              <span>Check Current Best Price on {review.affiliate_retailer || 'Store'}</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
@@ -162,9 +180,9 @@ export default function SingleReviewPage() {
       </div>
 
       {/* FTC Affiliate Monetization Disclosure */}
-      <div className="flex items-center gap-2.5 rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4 text-xs text-zinc-400">
+      <div className="flex items-center gap-2.5 rounded-2xl bg-zinc-900/60 border border-zinc-800 p-3.5 sm:p-4 text-xs text-zinc-400">
         <Info className="w-4 h-4 text-amber-400 flex-shrink-0" />
-        <span>
+        <span className="leading-relaxed">
           <strong className="text-zinc-200">Editorial Transparency & Disclosure:</strong> When you buy through links on our site, Ultimatum Lab may earn an affiliate commission from {review.affiliate_retailer || 'partner retailers'} at zero additional cost to you. Our lab evaluations remain 100% independent.
         </span>
       </div>
@@ -173,25 +191,25 @@ export default function SingleReviewPage() {
       {isTech ? (
         /* Tech Hardware Variant: Spec Matrix & Benchmark Analysis */
         <section className="space-y-6">
-          <div className="rounded-3xl border border-cyan-500/30 bg-zinc-900/80 p-6 sm:p-8 shadow-xl space-y-6">
+          <div className="rounded-3xl border border-cyan-500/30 bg-zinc-900/80 p-5 sm:p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-xl font-bold text-white">Hardware Telemetry & Specifications</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-white">Hardware Telemetry & Specifications</h3>
               </div>
-              <span className="text-xs font-mono text-cyan-400 font-bold uppercase">
+              <span className="text-[10px] sm:text-xs font-mono text-cyan-400 font-bold uppercase">
                 LAB AUDITED
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {Object.entries(review.specifications).map(([key, val]) => (
                 <div
                   key={key}
-                  className="flex items-center justify-between rounded-xl bg-zinc-950 p-3.5 border border-zinc-800"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded-xl bg-zinc-950 p-3 sm:p-3.5 border border-zinc-800"
                 >
                   <span className="text-xs text-zinc-400 font-mono">{key}</span>
-                  <span className="text-xs font-bold text-white">{String(val)}</span>
+                  <span className="text-xs font-bold text-white break-words">{String(val)}</span>
                 </div>
               ))}
             </div>
@@ -200,25 +218,25 @@ export default function SingleReviewPage() {
       ) : (
         /* Food Delivery Variant: Flavor & Freshness Packaging Card */
         <section className="space-y-6">
-          <div className="rounded-3xl border border-amber-500/30 bg-zinc-900/80 p-6 sm:p-8 shadow-xl space-y-6">
+          <div className="rounded-3xl border border-amber-500/30 bg-zinc-900/80 p-5 sm:p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
               <div className="flex items-center gap-2">
                 <Award className="w-5 h-5 text-amber-400" />
-                <h3 className="text-xl font-bold text-white">Delivery Logistics & Flavor Profile</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-white">Delivery Logistics & Flavor Profile</h3>
               </div>
-              <span className="text-xs font-mono text-amber-400 font-bold uppercase">
+              <span className="text-[10px] sm:text-xs font-mono text-amber-400 font-bold uppercase">
                 TASTE BENCHMARK
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {Object.entries(review.specifications).map(([key, val]) => (
                 <div
                   key={key}
-                  className="flex items-center justify-between rounded-xl bg-zinc-950 p-3.5 border border-zinc-800"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded-xl bg-zinc-950 p-3 sm:p-3.5 border border-zinc-800"
                 >
                   <span className="text-xs text-zinc-400 font-mono">{key}</span>
-                  <span className="text-xs font-bold text-amber-300">{String(val)}</span>
+                  <span className="text-xs font-bold text-amber-300 break-words">{String(val)}</span>
                 </div>
               ))}
             </div>

@@ -104,19 +104,19 @@ export default function SingleRecipePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
         <Link
           href="/recipes"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-amber-400 transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-amber-400 transition-colors tap-target"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4 flex-shrink-0" />
           <span>Back to The Kitchen Vault</span>
         </Link>
 
-        {/* PROMINENT JUMP TO RECIPE BUTTON */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* PROMINENT JUMP TO RECIPE BUTTON & ACTIONS */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={scrollToRecipe}
-            className="flex items-center gap-2 rounded-2xl bg-amber-500 px-5 py-2 text-xs font-black text-zinc-950 shadow-lg shadow-amber-500/20 hover:bg-amber-400 transition-all hover:scale-105"
+            className="flex items-center gap-2 rounded-2xl bg-amber-500 px-4 sm:px-5 py-2.5 text-xs font-black text-zinc-950 shadow-lg shadow-amber-500/20 hover:bg-amber-400 transition-all hover:scale-105 tap-target"
           >
-            <ArrowDownCircle className="w-4 h-4" />
+            <ArrowDownCircle className="w-4 h-4 flex-shrink-0" />
             <span>JUMP TO RECIPE</span>
           </button>
 
@@ -129,7 +129,7 @@ export default function SingleRecipePage() {
 
           <button
             onClick={handlePrint}
-            className="hidden sm:flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            className="hidden sm:flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white tap-target"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print</span>
@@ -137,7 +137,7 @@ export default function SingleRecipePage() {
 
           <button
             onClick={handleShare}
-            className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white tap-target"
           >
             <Share2 className="w-3.5 h-3.5" />
             <span>{copied ? 'Copied!' : 'Share'}</span>
@@ -182,7 +182,7 @@ export default function SingleRecipePage() {
           {recipe.description}
         </p>
 
-        <div className="flex flex-wrap items-center gap-6 pt-2 text-xs sm:text-sm text-zinc-400 border-t border-zinc-800/80 pt-4">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2 text-xs sm:text-sm text-zinc-400 border-t border-zinc-800/80 pt-4">
           <div className="flex items-center gap-2 text-white font-medium">
             <div className="h-7 w-7 rounded-full bg-amber-600/30 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold">
               <ChefHat className="w-4 h-4" />
@@ -211,29 +211,29 @@ export default function SingleRecipePage() {
       </div>
 
       {/* Quick Metrics Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-xl">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-5 shadow-xl">
         <div className="text-center">
-          <span className="text-[11px] font-mono uppercase text-zinc-400">Prep Time</span>
-          <div className="mt-1 text-lg font-bold text-white">{recipe.prep_time} mins</div>
+          <span className="text-[10px] sm:text-[11px] font-mono uppercase text-zinc-400">Prep Time</span>
+          <div className="mt-1 text-base sm:text-lg font-bold text-white">{recipe.prep_time} mins</div>
         </div>
         <div className="text-center">
-          <span className="text-[11px] font-mono uppercase text-zinc-400">Cook Time</span>
-          <div className="mt-1 text-lg font-bold text-white">{recipe.cook_time} mins</div>
+          <span className="text-[10px] sm:text-[11px] font-mono uppercase text-zinc-400">Cook Time</span>
+          <div className="mt-1 text-base sm:text-lg font-bold text-white">{recipe.cook_time} mins</div>
         </div>
         <div className="text-center">
-          <span className="text-[11px] font-mono uppercase text-zinc-400">Base Servings</span>
-          <div className="mt-1 text-lg font-bold text-amber-400">{recipe.servings} portions</div>
+          <span className="text-[10px] sm:text-[11px] font-mono uppercase text-zinc-400">Base Servings</span>
+          <div className="mt-1 text-base sm:text-lg font-bold text-amber-400">{recipe.servings} portions</div>
         </div>
         <div className="text-center">
-          <span className="text-[11px] font-mono uppercase text-zinc-400">Calories</span>
-          <div className="mt-1 text-lg font-bold text-cyan-400">{recipe.calories} kcal / serving</div>
+          <span className="text-[10px] sm:text-[11px] font-mono uppercase text-zinc-400">Calories</span>
+          <div className="mt-1 text-base sm:text-lg font-bold text-cyan-400">{recipe.calories} kcal</div>
         </div>
       </div>
 
       {/* Narrative & Culinary Science Notes */}
       <div className="prose prose-invert max-w-none text-zinc-300 space-y-4">
         <h3 className="text-xl font-bold text-white">Why This Blueprint Works</h3>
-        <p className="leading-relaxed">
+        <p className="leading-relaxed text-sm sm:text-base">
           Standard recipes often suffer from inconsistent moisture loss and uneven caramelization. In the Ultimatum Kitchen test trials, we established that par-cooking pasta precisely 2 minutes short of al dente allows the pasta core to absorb the savory San Marzano tomato emulsion without turning mushy during high-heat broiling.
         </p>
       </div>
@@ -244,7 +244,7 @@ export default function SingleRecipePage() {
       {/* 2. THE DEDICATED RECIPE CARD (Target of Jump to Recipe) */}
       <section
         id="recipe-card"
-        className="scroll-mt-24 rounded-3xl border border-amber-500/40 bg-zinc-950 p-6 sm:p-10 shadow-2xl space-y-8"
+        className="scroll-mt-24 rounded-3xl border border-amber-500/40 bg-zinc-950 p-5 sm:p-8 md:p-10 shadow-2xl space-y-6 sm:space-y-8"
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
           <div>
@@ -252,30 +252,30 @@ export default function SingleRecipePage() {
               <Sparkles className="w-4 h-4" />
               <span>Official Recipe Card</span>
             </div>
-            <h2 className="mt-1 text-2xl sm:text-3xl font-black text-white">{recipe.title}</h2>
+            <h2 className="mt-1 text-xl sm:text-2xl md:text-3xl font-black text-white">{recipe.title}</h2>
           </div>
 
           {/* DYNAMIC SERVINGS SCALER */}
-          <div className="flex items-center gap-3 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-2">
+          <div className="flex items-center gap-3 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-2 w-fit">
             <span className="text-xs font-mono text-zinc-400 uppercase">Servings:</span>
             <button
               onClick={() => handleScaleServings(-0.5)}
               disabled={servingsMultiplier <= 0.5}
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 disabled:opacity-30"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 disabled:opacity-30 tap-target"
               title="Decrease Servings"
             >
-              <Minus className="w-3.5 h-3.5" />
+              <Minus className="w-4 h-4" />
             </button>
-            <span className="min-w-[2.5rem] text-center font-bold text-amber-400 font-mono text-sm">
+            <span className="min-w-[2.5rem] text-center font-bold text-amber-400 font-mono text-base">
               {currentServings}
             </span>
             <button
               onClick={() => handleScaleServings(0.5)}
               disabled={servingsMultiplier >= 4}
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 disabled:opacity-30"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 disabled:opacity-30 tap-target"
               title="Increase Servings"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
         </div>

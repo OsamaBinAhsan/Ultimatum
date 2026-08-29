@@ -11,6 +11,7 @@ import {
   Sparkles,
   Trophy,
   Pause,
+  ChevronRight,
 } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { RewardedAdModal } from '@/components/monetization/RewardedAdModal';
@@ -478,6 +479,18 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
   const [combo, setCombo] = useState(1);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Equipped Cosmetic Loadout (Shop Visual Skin + Game Gear integration)
+  // ---------------------------------------------------------------------------
+  const _nabLoadout = platformStore.getLoadout(platformStore.getCurrentUser()?.id || 'user-001', 'neon-asteroid-blitz');
+  const _shipColor = _nabLoadout?.visualSkin?.shipColor || '#38bdf8';
+  const _laserColor = _nabLoadout?.visualSkin?.laserColor || '#38bdf8';
+  const _magnetMultiplier = (_nabLoadout?.gameGear?.magnetRadius || 1.0);
+  const _shieldRevives = (_nabLoadout?.gameGear?.shield_revives || 0);
+  const _shatterParticleCount = Math.floor(_nabLoadout?.actionJuice?.shatterParticleCount || 20);
+
+
   const [showRewardedAd, setShowRewardedAd] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [hasUsedRevive, setHasUsedRevive] = useState(false);
@@ -2595,41 +2608,98 @@ export function NeonAsteroidBlitzEngine({ gameId, gameTitle, onScoreSubmitted }:
           <span className="text-[11px] text-zinc-500 italic">No temporary boosters active • Destroy asteroids for 15% drop chance</span>
         )}
       </div>
+        {/* ---------------------------------------------------- */}
+        {/* HTML5 Canvas Frame                                   */}
+        {/* ---------------------------------------------------- */}
+        <div className="relative aspect-[4/3] w-full max-h-[580px] overflow-hidden rounded-xl border border-zinc-800 bg-black">
+          {/* Cinematic Start / Launch Overlay */}
+          {gameState === 'idle' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden">
+              <style>{`
+                @keyframes nabFloat { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+                @keyframes nabPulseGlow { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+                @keyframes nabScan { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+              `}</style>
 
-      {/* ---------------------------------------------------- */}
-      {/* HTML5 Canvas Frame                                   */}
-      {/* ---------------------------------------------------- */}
-      <div className="relative aspect-[4/3] w-full max-h-[580px] overflow-hidden rounded-xl border border-zinc-800 bg-black">
-        <canvas
-          ref={canvasRef}
-          width={800}
-          height={600}
-          onTouchMove={handleTouchMove}
-          className="h-full w-full object-contain cursor-crosshair touch-none"
-        />
+              {/* Deep space gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-b from-[#010208] via-[#040d18] to-[#020510]" />
 
-        {/* Start / Launch Overlay */}
-        {gameState === 'idle' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-sm">
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-3.5 py-1 text-xs font-mono font-semibold text-cyan-400 border border-cyan-500/30">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>ARCADE VECTOR SPACE SHOOTER: OVERDRIVE</span>
+              {/* Animated scanlines overlay */}
+              <div className="absolute inset-0 pointer-events-none" style={{backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,240,255,0.018) 3px, rgba(0,240,255,0.018) 4px)'}} />
+
+              {/* Animated nebula orbs */}
+              <div className="absolute top-1/4 left-1/4 w-72 h-72 rounded-full bg-cyan-500/10 blur-3xl" style={{animation: 'nabPulseGlow 4s ease-in-out infinite'}} />
+              <div className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-purple-500/8 blur-3xl" style={{animation: 'nabPulseGlow 5s ease-in-out infinite', animationDelay: '1s'}} />
+              <div className="absolute top-2/3 left-1/3 w-40 h-40 rounded-full bg-blue-500/6 blur-2xl" style={{animation: 'nabPulseGlow 6s ease-in-out infinite', animationDelay: '2s'}} />
+
+              {/* Animated scan line */}
+              <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" style={{animation: 'nabScan 4s linear infinite'}} />
+
+              {/* Badge */}
+              <div className="relative z-10 mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-1.5 text-xs font-mono font-bold text-cyan-300" style={{boxShadow: '0 0 20px rgba(6,182,212,0.3)'}}>
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <span>SECTOR ZERO — DEEP SPACE OVERDRIVE</span>
+              </div>
+
+              {/* Game Title */}
+              <h1 className="relative z-10 text-4xl sm:text-5xl font-black tracking-tight text-center px-4 mb-1" style={{background: 'linear-gradient(180deg, #ffffff 0%, #a5f3fc 60%, #06b6d4 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 0 30px rgba(6,182,212,0.8))'}}>
+                {gameTitle}
+              </h1>
+              <div className="relative z-10 text-[10px] font-mono text-cyan-400/70 tracking-[0.35em] uppercase mb-5">
+                Endless Combat · Sector 10 Dimension Boss Awaits
+              </div>
+
+              {/* Animated ship preview */}
+              <div className="relative z-10 mb-5 flex items-center justify-center h-24">
+                <div className="relative" style={{animation: 'nabFloat 3s ease-in-out infinite'}}>
+                  <svg width="72" height="88" viewBox="0 0 72 88" className="overflow-visible" style={{filter: `drop-shadow(0 0 12px ${_shipColor})`}}>
+                    <polygon points="36,4 56,70 36,56 16,70" fill="#0a0e1a" stroke={_shipColor} strokeWidth="2" />
+                    <polygon points="36,4 30,28 42,28" fill={_shipColor} opacity="0.8" />
+                    <circle cx="36" cy="20" r="5" fill={_shipColor} opacity="0.9" />
+                    <line x1="26" y1="56" x2="14" y2="80" stroke="#ff0077" strokeWidth="2.5" opacity="0.7" />
+                    <line x1="46" y1="56" x2="58" y2="80" stroke="#ff0077" strokeWidth="2.5" opacity="0.7" />
+                    <ellipse cx="36" cy="62" rx="10" ry="5" fill="#ff0077" opacity="0.4" />
+                  </svg>
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-12 rounded-full" style={{background: `radial-gradient(ellipse, ${_shipColor}60 0%, transparent 70%)`, filter: 'blur(6px)'}} />
+                </div>
+              </div>
+
+              {/* Controls row */}
+              <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 text-[10px] font-mono text-zinc-400 mb-5">
+                <span className="rounded-lg border border-zinc-700 bg-zinc-900/90 px-2.5 py-1">WASD / Arrows — Steer</span>
+                <span className="rounded-lg border border-zinc-700 bg-zinc-900/90 px-2.5 py-1">SPACE — Fire Blasters</span>
+                <span className="rounded-lg border border-cyan-500/40 bg-cyan-950/50 px-2.5 py-1 text-cyan-300">B / E — EMP Shockwave</span>
+                <span className="rounded-lg border border-amber-500/30 bg-amber-950/30 px-2.5 py-1 text-amber-300">❄️ Cryo — Freeze Overheat</span>
+              </div>
+
+              {/* Launch button */}
+              <button
+                onClick={startGame}
+                className="relative z-10 group flex items-center gap-3 rounded-2xl px-10 py-4 text-sm font-black text-white transition-all hover:scale-105 active:scale-95"
+                style={{background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)', boxShadow: '0 0 40px rgba(6,182,212,0.5), 0 4px 30px rgba(0,0,0,0.5)'}}
+              >
+                <Play className="w-5 h-5 fill-current" />
+                <span className="tracking-wider">LAUNCH MISSION</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              {/* High score */}
+              {highScore > 0 && (
+                <div className="relative z-10 mt-4 flex items-center gap-2 text-xs font-mono text-amber-400">
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>Personal Best: {highScore.toLocaleString()} pts</span>
+                </div>
+              )}
             </div>
-            <h3 className="text-3xl sm:text-4xl font-extrabold text-white">{gameTitle}</h3>
-            <p className="mt-2 max-w-md text-xs text-zinc-400 leading-relaxed">
-              Use <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-white">WASD / Arrows</kbd> to steer,{' '}
-              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-white">SPACE</kbd> to fire blasters, and{' '}
-              <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-white">B / E</kbd> for EMP Shockwaves. Collect <span className="text-cyan-300 font-bold">❄️ Cryo-Coolants</span> to freeze weapon heat and reach Sector 10 for the Deep Space Dimension!
-            </p>
-            <button
-              onClick={startGame}
-              className="mt-6 flex items-center gap-2 rounded-xl bg-cyan-500 px-8 py-3.5 text-sm font-bold text-zinc-950 shadow-xl shadow-cyan-500/30 hover:bg-cyan-400 transition-all hover:scale-105"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Launch Endless Mission</span>
-            </button>
-          </div>
-        )}
+          )}
+
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={600}
+            onTouchMove={handleTouchMove}
+            className="h-full w-full object-contain cursor-crosshair touch-none"
+          />
 
         {/* Paused Overlay */}
         {gameState === 'paused' && (

@@ -131,6 +131,15 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
   const [hasUsedRevive, setHasUsedRevive] = useState(false);
   const [isScoreSubmitted, setIsScoreSubmitted] = useState(false);
 
+  // ---------------------------------------------------------------------------
+  // Equipped 4-Slot Loadout (Paladin Gold Armor, Golden Sparkles, Apex Boots)
+  // ---------------------------------------------------------------------------
+  const _dldLoadout = platformStore.getLoadout(platformStore.getCurrentUser()?.id || 'user-001', 'dungeon-loot-dash');
+  const _characterSprite = _dldLoadout?.visualSkin?.characterSprite || 'standard';
+  const _coinCollectVFX = _dldLoadout?.actionJuice?.coinCollectVFX || null;
+  const _jumpApexBoost = (_dldLoadout?.gameGear?.jumpApexBoost || 1.0);
+  const _coinDropMultiplier = (_dldLoadout?.gameGear?.coinDropMultiplier || 1.0);
+
   const soundRef = useRef<ChiptuneKnightAudio>(new ChiptuneKnightAudio());
   const animFrameRef = useRef<number | null>(null);
 
@@ -418,13 +427,13 @@ export function DungeonLootDashEngine({ gameId, gameTitle, onScoreSubmitted }: D
           soundRef.current.playCoin();
 
           if (it.type === 'gem') {
-            setScore((s) => s + 500);
+            setScore((s) => s + Math.floor(500 * _coinDropMultiplier));
             addFloatText('+500 DIAMOND GEM', it.x, it.y - 15, '#38bdf8');
           } else if (it.type === 'magnet') {
             setHasMagnet(true);
             addFloatText('GOLD MAGNET ACTIVATED', it.x, it.y - 15, '#ec4899');
           } else {
-            setScore((s) => s + 60);
+            setScore((s) => s + Math.floor(60 * _coinDropMultiplier));
             addFloatText('+60 Gold', it.x, it.y - 10, '#fbbf24');
           }
         }

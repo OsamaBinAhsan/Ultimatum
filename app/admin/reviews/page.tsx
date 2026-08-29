@@ -16,6 +16,7 @@ import { Review, ReviewCategory, PostStatus } from '@/lib/types';
 import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 import { formatDateTime } from '@/lib/utils/format';
+import { ImageUpload } from '@/components/admin/ImageUpload';
 
 export default function AdminReviewsManager() {
   const [reviews, setReviews] = useState<Review[]>([]);

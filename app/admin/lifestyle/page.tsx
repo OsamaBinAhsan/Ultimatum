@@ -23,6 +23,7 @@ import { SchedulePostPanel } from '@/components/cms/SchedulePostPanel';
 import confetti from 'canvas-confetti';
 import { ArticleBodyRenderer } from '@/components/content/ArticleBodyRenderer';
 import { formatDateTime } from '@/lib/utils/format';
+import { ImageUpload } from '@/components/admin/ImageUpload';
 
 export default function AdminLifestyleManager() {
   const [articles, setArticles] = useState<Article[]>([]);

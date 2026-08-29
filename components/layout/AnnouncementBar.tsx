@@ -19,23 +19,24 @@ export function AnnouncementBar() {
   if (!announcement || !announcement.enabled || dismissed) return null;
 
   return (
-    <div className="relative isolate flex items-center justify-between gap-x-6 overflow-hidden bg-gradient-to-r from-purple-900 via-indigo-900 to-cyan-900 px-4 py-2 text-xs sm:px-6">
-      <div className="mx-auto flex items-center gap-2 text-white font-medium">
+    <div className="relative isolate flex items-center justify-between gap-x-3 sm:gap-x-6 overflow-hidden bg-gradient-to-r from-purple-900 via-indigo-900 to-cyan-900 px-3 py-2 text-[11px] sm:text-xs sm:px-6">
+      <div className="mx-auto flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-white font-medium text-center">
         <Sparkles className="h-3.5 w-3.5 text-amber-300 animate-pulse flex-shrink-0" />
-        <span>{announcement.text}</span>
+        <span className="line-clamp-2 sm:line-clamp-1">{announcement.text}</span>
         {announcement.link && (
           <Link
             href={announcement.link}
-            className="flex items-center gap-1 font-bold text-amber-300 hover:text-white underline underline-offset-2 ml-1"
+            className="inline-flex items-center gap-1 font-bold text-amber-300 hover:text-white underline underline-offset-2 ml-1 flex-shrink-0"
           >
-            <span>Check it out</span>
+            <span>Explore</span>
             <ArrowRight className="h-3 w-3" />
           </Link>
         )}
       </div>
       <button
         onClick={() => setDismissed(true)}
-        className="rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10"
+        aria-label="Dismiss announcement"
+        className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg p-1 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
       >
         <X className="h-3.5 w-3.5" />
       </button>

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Sparkles, Gamepad2, Utensils, Cpu, ShieldCheck, Newspaper } from 'lucide-react';
+import { Gamepad2, Utensils, Cpu, ShieldCheck, Mail, ArrowRight, Newspaper, Sparkles } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { CustomPage } from '@/lib/types';
 import { AdSlot } from '@/components/monetization/AdSlot';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 export function Footer() {
   const [footerPages, setFooterPages] = useState<CustomPage[]>([]);
@@ -15,23 +16,18 @@ export function Footer() {
   }, []);
 
   return (
-    <footer className="border-t border-zinc-800/80 bg-zinc-950 text-zinc-400">
+    <footer className="border-t border-zinc-800/80 bg-zinc-950 text-zinc-400 pb-safe">
       {/* Sticky / Footer Ad Slot Placement */}
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
         <AdSlot slot="footer" label="FOOTER STICKY LEADERBOARD (728x90)" />
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:py-12 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           {/* Brand Col */}
-          <div className="md:col-span-1">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-500">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-lg font-black tracking-tight text-white">
-                ULTIMATUM<span className="text-cyan-400">.</span>
-              </span>
+          <div className="sm:col-span-2 lg:col-span-1 space-y-3">
+            <Link href="/" className="group flex items-center gap-2.5">
+              <BrandLogo size="md" />
             </Link>
             <p className="mt-3 text-xs leading-relaxed text-zinc-400">
               The premier high-traffic nexus of retro canvas gaming, Michelin-standard kitchen recipes, skincare science, and authoritative tech lab teardowns.

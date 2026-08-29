@@ -2,15 +2,15 @@ import { Metadata } from 'next';
 import { querySQLServer } from '@/lib/db/sqlserver';
 import { platformStore } from '@/lib/data/store';
 import type { ShopItem } from '@/lib/types';
-import { ShopClient } from '@/app/shop/ShopClient';
+import { ShopClient } from './ShopClient';
 
 export const metadata: Metadata = {
-  title: 'Arcade Rewards & In-Game Shop | Ultimatum Arcade',
+  title: 'Shop & Rewards Vault — Digital Cosmetics, Hardware Perks & Vouchers | Ultimatum',
   description:
     'Redeem tournament reward coins for in-game loadout gear, sponsored hardware discounts, single-use vouchers, and digital master guides on Ultimatum.',
 };
 
-export default async function GamesShopPage() {
+export default async function ShopPage() {
   let items: ShopItem[] = [];
 
   try {

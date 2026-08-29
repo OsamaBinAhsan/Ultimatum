@@ -22,12 +22,22 @@ export default function SingleGamePage() {
   const params = useParams();
   const slug = params?.slug as string;
 
-  const [game, setGame] = useState<Game | null>(null);
+  const [game, setGame] = useState<Game | null>(() => {
+    if (typeof slug === 'string') {
+      return platformStore.getGameBySlug(slug) || null;
+    }
+    return null;
+  });
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [copied, setCopied] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
+    // Lock scroll to top so page never jumps to comments on load
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+    }
+
     const foundGame = platformStore.getGameBySlug(slug);
     if (foundGame) {
       setGame(foundGame);
@@ -53,7 +63,6 @@ export default function SingleGamePage() {
   }, [slug]);
 
   if (!game && typeof window !== 'undefined') {
-    // Check if initial load
     const g = platformStore.getGameBySlug(slug);
     if (!g) return notFound();
   }
@@ -131,9 +140,9 @@ export default function SingleGamePage() {
       </div>
 
       {/* Main Arcade Layout: Game Canvas (Left) + Live Leaderboard & Rewards (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Canvas Game Engine & Instructions (8 Cols) */}
-        <div className="lg:col-span-8 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        {/* Left Column: Canvas Game Engine & Instructions (7-8 Cols) */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-6">
           <CanvasGame
             gameId={game.id}
             gameTitle={game.title}
@@ -142,18 +151,18 @@ export default function SingleGamePage() {
           />
 
           {/* Game Description & Mechanics Card */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-xl">
-            <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-6 shadow-xl">
+            <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
               <Info className="w-4 h-4" />
               <span>Official Game Brief & Pro Controls</span>
             </div>
-            <h2 className="mt-2 text-2xl font-bold text-white">{game.title}</h2>
-            <p className="mt-2 text-sm text-zinc-300 leading-relaxed">{game.description}</p>
+            <h2 className="mt-2 text-xl sm:text-2xl font-bold text-white">{game.title}</h2>
+            <p className="mt-2 text-xs sm:text-sm text-zinc-300 leading-relaxed">{game.description}</p>
 
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-zinc-800 pt-6">
-              <div className="rounded-xl bg-zinc-950 p-3.5 border border-zinc-800/80">
-                <div className="text-xs font-mono text-zinc-400 uppercase">Primary Control</div>
-                <div className="mt-1 font-bold text-sm text-white">
+            <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 border-t border-zinc-800 pt-4 sm:pt-6">
+              <div className="rounded-xl bg-zinc-950 p-3 sm:p-3.5 border border-zinc-800/80">
+                <div className="text-[10px] sm:text-xs font-mono text-zinc-400 uppercase">Primary Control</div>
+                <div className="mt-1 font-bold text-xs sm:text-sm text-white">
                   {game.slug === 'cyber-slicer-2099'
                     ? 'Mouse / Touch Swipe'
                     : game.slug === 'pixel-kitchen-rush'
@@ -167,9 +176,9 @@ export default function SingleGamePage() {
                     : 'Arrow Keys / WASD'}
                 </div>
               </div>
-              <div className="rounded-xl bg-zinc-950 p-3.5 border border-zinc-800/80">
-                <div className="text-xs font-mono text-zinc-400 uppercase">Secondary Action</div>
-                <div className="mt-1 font-bold text-sm text-white">
+              <div className="rounded-xl bg-zinc-950 p-3 sm:p-3.5 border border-zinc-800/80">
+                <div className="text-[10px] sm:text-xs font-mono text-zinc-400 uppercase">Secondary Action</div>
+                <div className="mt-1 font-bold text-xs sm:text-sm text-white">
                   {game.slug === 'cyber-slicer-2099'
                     ? 'Multi-Slash Combos'
                     : game.slug === 'pixel-kitchen-rush'
@@ -183,9 +192,9 @@ export default function SingleGamePage() {
                     : 'SPACEBAR Plasma Lasers'}
                 </div>
               </div>
-              <div className="rounded-xl bg-zinc-950 p-3.5 border border-zinc-800/80">
-                <div className="text-xs font-mono text-zinc-400 uppercase">Pro Tip</div>
-                <div className="mt-1 font-bold text-sm text-cyan-300">
+              <div className="rounded-xl bg-zinc-950 p-3 sm:p-3.5 border border-zinc-800/80">
+                <div className="text-[10px] sm:text-xs font-mono text-zinc-400 uppercase">Pro Tip</div>
+                <div className="mt-1 font-bold text-xs sm:text-sm text-cyan-300">
                   {game.slug === 'cyber-slicer-2099'
                     ? 'Slice 3+ nodes in 1 stroke!'
                     : game.slug === 'pixel-kitchen-rush'
@@ -203,10 +212,10 @@ export default function SingleGamePage() {
           </div>
         </div>
 
-        {/* Right Column: Weekly Leaderboard, Rewarded Ad Container & Sidebar Ad (4 Cols) */}
-        <div className="lg:col-span-4 space-y-6">
+        {/* Right Column: Weekly Leaderboard, Rewarded Ad Container & Sidebar Ad (4-5 Cols) */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-6">
           {/* Live Weekly Leaderboard Card */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-6 shadow-2xl">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-4 sm:p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
               <div className="flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-amber-400" />

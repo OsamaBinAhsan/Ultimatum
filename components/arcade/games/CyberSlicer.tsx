@@ -281,6 +281,15 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
   const [bulletTime, setBulletTime] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Equipped 4-Slot Loadout (Cosmetics & Stat Boosters)
+  // ---------------------------------------------------------------------------
+  const _csLoadout = platformStore.getLoadout(platformStore.getCurrentUser()?.id || 'user-001', 'cyber-slicer-2099');
+  const _bladeSkinColor = _csLoadout?.visualSkin?.bladeColor || null;
+  const _sliceVFXType = _csLoadout?.actionJuice?.sliceVFX || null;
+  const _hitboxMultiplier = (_csLoadout?.gameGear?.hitboxMultiplier || 1.0);
+
   const [showRewardedAd, setShowRewardedAd] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [hasUsedRevive, setHasUsedRevive] = useState(false);
@@ -451,7 +460,7 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
       const closestY = p1.y + u * dy;
       const dist = Math.hypot(node.x - closestX, node.y - closestY);
 
-      if (dist < node.radius + 18) {
+      if (dist < (node.radius + 18) * _hitboxMultiplier) {
         node.hp -= 1;
 
         if (node.type === 'bomb') {
@@ -478,7 +487,22 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
             soundRef.current.playSlice(selectedBlade, consecutiveSlicesRef.current);
           }
 
-          createSparks(node.x, node.y, node.color, isCritical ? 40 : 25, node.type === 'boss_firewall');
+          createSparks(node.x, node.y, _bladeSkinColor || node.color, isCritical ? 40 : 25, node.type === 'boss_firewall');
+
+          // Action Juice: Glitch Binary Dissolve Matrix Burst
+          if (_sliceVFXType === 'glitch_binary' || _sliceVFXType) {
+            const hexChars = ['0', '1', 'A', 'F', '0x', 'FF', 'CYBER'];
+            for (let k = 0; k < 8; k++) {
+              addFloatText(
+                hexChars[Math.floor(Math.random() * hexChars.length)],
+                node.x + (Math.random() - 0.5) * 40,
+                node.y + (Math.random() - 0.5) * 40,
+                _bladeSkinColor || '#00f0ff',
+                1.0
+              );
+            }
+          }
+
 
           const pushSpd = isCritical ? 6.5 : 4.5;
           const perpAngle = cutAngle + Math.PI / 2;
@@ -774,7 +798,7 @@ export function CyberSlicerEngine({ gameId, gameTitle, onScoreSubmitted }: Cyber
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = isOverdrive ? `rgba(251, 191, 36, ${alpha})` : bladeConfig.color;
+        ctx.strokeStyle = isOverdrive ? `rgba(251, 191, 36, ${alpha})` : (_bladeSkinColor || bladeConfig.color);
         ctx.lineWidth = (isOverdrive ? 12 : 8) * alpha;
         ctx.lineCap = 'round';
         ctx.stroke();

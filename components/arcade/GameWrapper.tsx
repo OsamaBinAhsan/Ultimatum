@@ -24,9 +24,20 @@ import {
   AlertTriangle,
   Star,
   Flame,
+  Palette,
+  Sparkles,
+  Shield,
+  Volume2,
+  Eye,
+  ChevronRight,
+  Gamepad2,
+  Swords,
+  Layers,
 } from 'lucide-react';
 import Link from 'next/link';
 import { platformStore } from '@/lib/data/store';
+import { InGameLoadoutModal } from '@/components/arcade/InGameLoadoutModal';
+import type { GameLoadout } from '@/lib/types';
 import type {
   UltimatumGameConfig,
   GamePhase,
@@ -46,32 +57,36 @@ function generateShortCode(): string {
 
 // Web Audio countdown beep synthesizer — no external deps
 function playCountdownBeep(ctx: AudioContext, freq: number, duration: number) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(freq, ctx.currentTime);
-  gain.gain.setValueAtTime(0.35, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start();
-  osc.stop(ctx.currentTime + duration);
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch {}
 }
 
 function playGoFanfare(ctx: AudioContext) {
-  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-  notes.forEach((freq, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
-    gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.1);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.18);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(ctx.currentTime + i * 0.1);
-    osc.stop(ctx.currentTime + i * 0.1 + 0.18);
-  });
+  try {
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.1);
+      osc.stop(ctx.currentTime + i * 0.1 + 0.18);
+    });
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +152,7 @@ interface GameWrapperProps {
 }
 
 // ---------------------------------------------------------------------------
-// GameWrapper — The Universal HOC
+// GameWrapper — The Universal HOC with In-Game Loadout & Cinematic Lobby
 // ---------------------------------------------------------------------------
 
 export function GameWrapper({ config, children }: GameWrapperProps) {
@@ -152,9 +167,42 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   const [payoutResult, setPayoutResult] = useState<GameScoreSubmissionResult | null>(null);
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
+  const [isLoadoutModalOpen, setIsLoadoutModalOpen] = useState(false);
+  const [activeLoadout, setActiveLoadout] = useState<GameLoadout>({ gameGear: {} });
+  const [highScore, setHighScore] = useState<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const user = platformStore.getCurrentUser();
+  const userId = user?.id || 'user-001';
+
+  // Fetch loadout and personal best on mount / update
+  const refreshLoadout = useCallback(() => {
+    const currentLoadout = platformStore.getLoadout(userId, config.gameSlug);
+    setActiveLoadout(currentLoadout);
+
+    // Get personal high score from leaderboard
+    const game = platformStore.getGameBySlug(config.gameSlug);
+    if (game) {
+      const lb = platformStore.getLeaderboard(game.id);
+      const userEntry = lb.find((e) => e.player_name?.toLowerCase() === (user?.username?.toLowerCase() || ''));
+      if (userEntry) {
+        setHighScore(userEntry.score);
+      } else if (lb.length > 0) {
+        setHighScore(lb[0].score);
+      }
+    }
+  }, [config.gameSlug, user?.username, userId]);
+
+  useEffect(() => {
+    refreshLoadout();
+    const handleUpdate = () => refreshLoadout();
+    window.addEventListener('loadout-updated', handleUpdate);
+    window.addEventListener('inventory-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('loadout-updated', handleUpdate);
+      window.removeEventListener('inventory-updated', handleUpdate);
+    };
+  }, [refreshLoadout]);
 
   // Lazy init AudioContext on user gesture
   const getAudioCtx = useCallback(() => {
@@ -234,14 +282,14 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
       const t = setTimeout(() => {
         setCountdownLabel('');
         setPhase('PLAYING');
-      }, 900);
+      }, 750);
       return () => clearTimeout(t);
     }
 
     const ctx = getAudioCtx();
     if (ctx) playCountdownBeep(ctx, countdown === 1 ? 880 : 660, 0.18);
     setCountdownLabel(String(countdown));
-    const t = setTimeout(() => setCountdown((n) => (n !== null ? n - 1 : null)), 950);
+    const t = setTimeout(() => setCountdown((n) => (n !== null ? n - 1 : null)), 850);
     return () => clearTimeout(t);
   }, [phase, countdown, getAudioCtx]);
 
@@ -342,80 +390,258 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
   }, []);
 
   // -------------------------------------------------------------------------
-  // RENDER: Phase LOBBY
+  // RENDER: Phase LOBBY (Cinematic Pre-Match Cockpit)
   // -------------------------------------------------------------------------
 
   if (phase === 'LOBBY') {
+    const hasVisualSkin = !!activeLoadout.visualSkin;
+    const hasActionJuice = !!activeLoadout.actionJuice;
+    const hasGameGear = activeLoadout.gameGear && Object.keys(activeLoadout.gameGear).length > 0;
+    const hasAudioTheme = !!activeLoadout.audioTheme;
+
     return (
-      <div className="flex min-h-[520px] items-center justify-center bg-zinc-950 px-4 py-12">
-        <div className="w-full max-w-sm space-y-6">
-          {/* Game Title Banner */}
+      <div className="relative w-full overflow-hidden rounded-3xl border border-cyan-500/20 bg-[#060a14] shadow-[0_0_80px_rgba(6,182,212,0.15)] select-none">
+        <style>{`
+          @keyframes lobbyGrid { 0% { transform: translateY(0); } 100% { transform: translateY(40px); } }
+          @keyframes lobbyPulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.05); } }
+          @keyframes glowPill { 0%, 100% { filter: drop-shadow(0 0 15px rgba(6,182,212,0.5)); } 50% { filter: drop-shadow(0 0 25px rgba(6,182,212,0.8)); } }
+        `}</style>
+
+        {/* Ambient Dark Nebula Background */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#02050f] via-[#050e1e] to-[#020409]" />
+        
+        {/* Animated Cyber Grid */}
+        <div
+          className="absolute inset-0 opacity-20 pointer-events-none"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(6,182,212,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.15) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+            animation: 'lobbyGrid 8s linear infinite',
+          }}
+        />
+
+        {/* Scanlines Effect */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-30"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,240,255,0.02) 2px, rgba(0,240,255,0.02) 4px)',
+          }}
+        />
+
+        {/* Glowing Nebula Orbs */}
+        <div
+          className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"
+          style={{ animation: 'lobbyPulse 6s ease-in-out infinite' }}
+        />
+        <div
+          className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-purple-500/10 blur-3xl pointer-events-none"
+          style={{ animation: 'lobbyPulse 7s ease-in-out infinite', animationDelay: '1s' }}
+        />
+
+        <div className="relative z-10 p-5 sm:p-8 flex flex-col gap-6 max-w-2xl mx-auto">
+          {/* Header Banner */}
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-mono font-bold text-cyan-300">
-              <Zap className="h-3 w-3" />
-              <span>{config.category?.toUpperCase() ?? 'ARCADE'}</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3.5 py-1 text-xs font-mono font-bold text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <Zap className="h-3.5 w-3.5 text-cyan-400 animate-pulse" />
+              <span>OFFICIAL ULTIMATUM TOURNAMENT ARENA</span>
             </div>
-            <h2 className="text-3xl font-black text-white tracking-tight">{config.title}</h2>
+
+            <h1
+              className="text-3xl sm:text-5xl font-black tracking-tight text-white uppercase drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]"
+              style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #a5f3fc 60%, #38bdf8 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {config.title}
+            </h1>
+
             {config.description && (
-              <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mx-auto">{config.description}</p>
+              <p className="text-xs sm:text-sm text-zinc-300 font-sans leading-relaxed max-w-lg mx-auto">
+                {config.description}
+              </p>
+            )}
+
+            {highScore > 0 && (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-0.5 text-[11px] font-mono font-bold text-amber-300">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span>Arena Best: {highScore.toLocaleString()} PTS</span>
+              </div>
             )}
           </div>
 
-          {/* Mode Selector */}
+          {/* ----------------------------------------------------------------- */}
+          {/* In-Game 4-Slot Loadout Bar with Direct Customization Modal Access */}
+          {/* ----------------------------------------------------------------- */}
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 p-3.5 backdrop-blur-md space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                  Equipped 4-Slot Loadout
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsLoadoutModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-purple-500/50 bg-purple-500/20 px-3 py-1 text-xs font-mono font-bold text-purple-300 hover:bg-purple-500 hover:text-white transition-all shadow-sm shadow-purple-500/20 hover:scale-105 active:scale-95"
+              >
+                <Palette className="w-3.5 h-3.5" />
+                <span>Customize & Shop</span>
+              </button>
+            </div>
+
+            {/* 4-Slot Status Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
+              {/* 1. Visual Skin */}
+              <div
+                onClick={() => setIsLoadoutModalOpen(true)}
+                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-pink-500/60 ${
+                  hasVisualSkin
+                    ? 'border-pink-500/40 bg-pink-950/30 text-pink-300'
+                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-pink-400">
+                  <Eye className="w-3 h-3" />
+                  <span>Visual Skin</span>
+                </div>
+                <div className="text-xs font-bold text-white mt-0.5 truncate">
+                  {hasVisualSkin ? 'Custom Skin Active' : 'Standard Default'}
+                </div>
+              </div>
+
+              {/* 2. Action Juice */}
+              <div
+                onClick={() => setIsLoadoutModalOpen(true)}
+                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-amber-500/60 ${
+                  hasActionJuice
+                    ? 'border-amber-500/40 bg-amber-950/30 text-amber-300'
+                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-amber-400">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Action Juice</span>
+                </div>
+                <div className="text-xs font-bold text-white mt-0.5 truncate">
+                  {hasActionJuice ? 'VFX Particles Active' : 'Standard Sparks'}
+                </div>
+              </div>
+
+              {/* 3. Game Gear */}
+              <div
+                onClick={() => setIsLoadoutModalOpen(true)}
+                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-cyan-500/60 ${
+                  hasGameGear
+                    ? 'border-cyan-500/40 bg-cyan-950/30 text-cyan-300'
+                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-cyan-400">
+                  <Shield className="w-3 h-3" />
+                  <span>Game Gear</span>
+                </div>
+                <div className="text-xs font-bold text-white mt-0.5 truncate">
+                  {hasGameGear ? 'Stat Booster Active' : 'Standard Gear'}
+                </div>
+              </div>
+
+              {/* 4. Audio Theme */}
+              <div
+                onClick={() => setIsLoadoutModalOpen(true)}
+                className={`cursor-pointer rounded-xl p-2.5 border transition-all hover:border-purple-500/60 ${
+                  hasAudioTheme
+                    ? 'border-purple-500/40 bg-purple-950/30 text-purple-300'
+                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-purple-400">
+                  <Volume2 className="w-3 h-3" />
+                  <span>Audio Theme</span>
+                </div>
+                <div className="text-xs font-bold text-white mt-0.5 truncate">
+                  {hasAudioTheme ? 'Custom Synthesizer' : 'Arcade 8-Bit'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ----------------------------------------------------------------- */}
+          {/* Launch Buttons & Multiplayer Matchmaking Options                  */}
+          {/* ----------------------------------------------------------------- */}
           <div className="space-y-3">
-            {/* Solo Quick Play */}
+            {/* Solo Quick Play (Primary CTA) */}
             <button
               onClick={handleSoloPlay}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-6 py-4 text-sm font-bold text-white shadow-xl shadow-cyan-600/20 hover:scale-105 transition-all"
+              className="w-full group flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-cyan-500 via-indigo-600 to-purple-600 px-6 py-4 text-base font-black text-white shadow-[0_0_35px_rgba(6,182,212,0.4)] hover:shadow-[0_0_50px_rgba(6,182,212,0.6)] hover:scale-[1.02] active:scale-95 transition-all"
             >
-              <Play className="h-4 w-4" />
-              <span>Quick Play — Solo</span>
+              <Play className="h-5 w-5 fill-current text-white group-hover:scale-110 transition-transform" />
+              <span className="tracking-wider">ENTER TOURNAMENT MATCH</span>
+              <ChevronRight className="h-5 w-5 text-cyan-200 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            {/* Multiplayer section only if game supports it */}
+            {/* Multiplayer Section */}
             {config.hasMultiplayer && config.shortCodeMatchmaking && (
-              <>
-                <div className="relative flex items-center gap-3">
-                  <div className="flex-1 h-px bg-zinc-800" />
-                  <span className="text-[10px] font-mono font-bold text-zinc-500">MULTIPLAYER</span>
-                  <div className="flex-1 h-px bg-zinc-800" />
+              <div className="space-y-2 pt-2 border-t border-zinc-800/80">
+                <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Multiplayer Room Hub</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-500 font-mono">1v1 / Co-Op Lobby</span>
                 </div>
 
-                {/* Host Room */}
-                <button
-                  onClick={handleHostRoom}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-950/40 px-6 py-3.5 text-sm font-bold text-purple-200 hover:bg-purple-900/60 hover:text-white transition-all"
-                >
-                  <Radio className="h-4 w-4" />
-                  <span>Host a Room</span>
-                </button>
-
-                {/* Join Room */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={joinInput}
-                    onChange={(e) => setJoinInput(e.target.value.toUpperCase().slice(0, 4))}
-                    onKeyDown={(e) => e.key === 'Enter' && joinInput.length === 4 && handleJoinRoom()}
-                    placeholder="XXXX"
-                    maxLength={4}
-                    className="flex-1 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3.5 text-center text-sm font-mono font-black tracking-[0.35em] text-white placeholder-zinc-600 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/40 uppercase"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Host Room */}
                   <button
-                    onClick={handleJoinRoom}
-                    disabled={joinInput.length !== 4}
-                    className="rounded-2xl bg-zinc-800 px-4 py-3.5 text-xs font-bold text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 transition-all"
+                    onClick={handleHostRoom}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-950/40 px-4 py-3 text-xs font-bold text-indigo-200 hover:bg-indigo-900/60 hover:text-white transition-all shadow-sm"
                   >
-                    <Users className="h-4 w-4" />
+                    <Radio className="h-4 w-4" />
+                    <span>Host Private Room</span>
                   </button>
+
+                  {/* Join Room */}
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={joinInput}
+                      onChange={(e) => setJoinInput(e.target.value.toUpperCase().slice(0, 4))}
+                      onKeyDown={(e) => e.key === 'Enter' && joinInput.length === 4 && handleJoinRoom()}
+                      placeholder="CODE"
+                      maxLength={4}
+                      className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900/90 px-3 py-2.5 text-center text-xs font-mono font-black tracking-widest text-white placeholder-zinc-600 outline-none focus:border-cyan-500 uppercase"
+                    />
+                    <button
+                      onClick={handleJoinRoom}
+                      disabled={joinInput.length !== 4}
+                      className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40 transition-all shadow"
+                    >
+                      Join
+                    </button>
+                  </div>
                 </div>
-                <p className="text-center text-[10px] font-mono text-zinc-600">
-                  Enter 4-letter room code to join a friend
-                </p>
-              </>
+              </div>
             )}
           </div>
         </div>
+
+        {/* Embedded Pre-Match InGameLoadoutModal */}
+        <InGameLoadoutModal
+          isOpen={isLoadoutModalOpen}
+          onClose={() => {
+            setIsLoadoutModalOpen(false);
+            refreshLoadout();
+          }}
+          gameSlug={config.gameSlug}
+          gameTitle={config.title}
+          userId={userId}
+        />
       </div>
     );
   }
@@ -555,16 +781,16 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
       : 'text-zinc-400';
 
   return (
-    <div className="flex min-h-[520px] items-center justify-center bg-zinc-950 px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="flex min-h-[400px] sm:min-h-[520px] items-center justify-center bg-zinc-950 px-3 sm:px-4 py-8 sm:py-12">
+      <div className="w-full max-w-sm space-y-5 sm:space-y-6">
         {/* Game Over Header */}
         <div className="text-center space-y-1">
-          <div className="text-[11px] font-mono font-bold text-zinc-500 uppercase">Round Complete</div>
-          <h2 className="text-3xl font-black text-white">{config.title}</h2>
+          <div className="text-[10px] sm:text-[11px] font-mono font-bold text-zinc-500 uppercase">Round Complete</div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white">{config.title}</h2>
         </div>
 
         {/* Score Card */}
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 text-center space-y-4">
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-6 text-center space-y-4">
           {isSubmittingScore ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
@@ -573,19 +799,19 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
           ) : payoutResult ? (
             <>
               {/* Rank Badge */}
-              <div className={`text-6xl font-black font-mono ${medalColor}`}>
+              <div className={`text-5xl sm:text-6xl font-black font-mono ${medalColor}`}>
                 {rankOrdinal}
               </div>
-              <div className="flex items-center justify-center gap-4 text-center">
+              <div className="flex items-center justify-center gap-3 sm:gap-4 text-center">
                 <div>
                   <div className="text-[10px] font-mono font-bold text-zinc-500 uppercase">Score</div>
-                  <div className="text-2xl font-black font-mono text-white">{finalScore.toLocaleString()}</div>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-white">{finalScore.toLocaleString()}</div>
                 </div>
                 <div className="h-8 w-px bg-zinc-700" />
                 <div>
                   <div className="text-[10px] font-mono font-bold text-zinc-500 uppercase">Coins Earned</div>
-                  <div className="flex items-center gap-1 text-2xl font-black font-mono text-amber-400">
-                    <Coins className="h-5 w-5" />
+                  <div className="flex items-center gap-1 text-xl sm:text-2xl font-black font-mono text-amber-400">
+                    <Coins className="h-4 sm:h-5 w-4 sm:w-5" />
                     <span>+{payoutResult.coinsEarned}</span>
                   </div>
                 </div>
@@ -607,7 +833,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
         <div className="space-y-2">
           <button
             onClick={handlePlayAgain}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-xl hover:scale-105 transition-all"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 text-sm font-bold text-white shadow-xl hover:scale-105 transition-all tap-target"
           >
             <RotateCcw className="h-4 w-4" />
             <span>Play Again</span>
@@ -615,7 +841,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
 
           <Link
             href="/games/shop"
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-950/40 px-6 py-3.5 text-sm font-bold text-purple-200 hover:bg-purple-900/60 hover:text-white transition-all"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-950/40 px-5 sm:px-6 py-3 sm:py-3.5 text-sm font-bold text-purple-200 hover:bg-purple-900/60 hover:text-white transition-all tap-target"
           >
             <ShoppingBag className="h-4 w-4" />
             <span>Spend Coins in Cosmetics Shop</span>
@@ -623,7 +849,7 @@ export function GameWrapper({ config, children }: GameWrapperProps) {
 
           <Link
             href="/games"
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-6 py-3 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 sm:px-6 py-2.5 sm:py-3 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white transition-all tap-target"
           >
             <Flame className="h-3.5 w-3.5" />
             <span>Back to The Arcade Vault</span>

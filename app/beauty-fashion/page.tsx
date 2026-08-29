@@ -30,16 +30,16 @@ export default function BeautyFashionHubPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-pink-500/30 bg-gradient-to-r from-zinc-950 via-pink-950/25 to-zinc-950 p-8 sm:p-12 shadow-2xl">
+      <div className="relative overflow-hidden rounded-3xl border border-pink-500/30 bg-gradient-to-r from-zinc-950 via-pink-950/25 to-zinc-950 p-5 sm:p-8 md:p-12 shadow-2xl">
         <div className="relative z-10 max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-pink-400/40 bg-pink-500/10 px-3 py-1 text-xs font-mono font-bold text-pink-300">
+          <div className="inline-flex items-center gap-2 rounded-full border border-pink-400/40 bg-pink-500/10 px-3 py-1 text-[10px] sm:text-xs font-mono font-bold text-pink-300">
             <Sparkles className="w-3.5 h-3.5" />
             <span>BEAUTY, SKINCARE SCIENCE & TECHWEAR</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
             Beauty & Fashion Lab
           </h1>
-          <p className="text-base text-zinc-300 leading-relaxed">
+          <p className="text-sm sm:text-base text-zinc-300 leading-relaxed">
             Dermatological screen-defense science, modular techwear teardowns, and curated shoppable street style lookbooks backed by verified material engineering.
           </p>
         </div>
@@ -54,16 +54,16 @@ export default function BeautyFashionHubPage() {
             placeholder="Search beauty, techwear, skincare..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/90 py-2.5 pl-10 pr-4 text-sm text-white placeholder-zinc-500 focus:border-pink-500 focus:outline-none"
+            className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/90 py-2.5 pl-10 pr-4 text-xs sm:text-sm text-white placeholder-zinc-500 focus:border-pink-500 focus:outline-none tap-target"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {tags.map((tag) => (
             <button
               key={tag}
               onClick={() => setSelectedTag(tag)}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+              className={`rounded-xl px-3 sm:px-3.5 py-1.5 text-xs font-bold transition-all tap-target ${
                 selectedTag === tag
                   ? 'bg-pink-500 text-white shadow-md shadow-pink-500/20'
                   : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white'
@@ -76,7 +76,7 @@ export default function BeautyFashionHubPage() {
       </div>
 
       {/* Articles Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
         {filtered.map((article) => (
           <Link
             key={article.id}

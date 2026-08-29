@@ -237,6 +237,16 @@ export function PixelKitchenRushEngine({ gameId, gameTitle: _gameTitle, onScoreS
   // Modals & Sound
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // ---------------------------------------------------------------------------
+  // Equipped 4-Slot Loadout (Chef Skin, Nitro Trails & Turbo Stoves)
+  // ---------------------------------------------------------------------------
+  const _pkrLoadout = platformStore.getLoadout(platformStore.getCurrentUser()?.id || 'user-001', 'pixel-kitchen-rush');
+  const _chefSprite = _pkrLoadout?.visualSkin?.chefSprite || 'standard';
+  const _dashParticleColor = _pkrLoadout?.actionJuice?.dashParticleColor || null;
+  const _cookSpeedMultiplier = (_pkrLoadout?.gameGear?.cook_speed_multiplier || 1.0);
+  const _extinguishSpeedMultiplier = (_pkrLoadout?.gameGear?.extinguish_speed_multiplier || 1.0);
+
   const [showRewardedAd, setShowRewardedAd] = useState<boolean>(false);
   const [adRewardAction, setAdRewardAction] = useState<'double_tips' | 'bribe_inspector'>('double_tips');
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);

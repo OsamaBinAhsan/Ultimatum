@@ -7,6 +7,7 @@ import { Gamepad2, Plus, Trash2, Edit3, Eye, CheckCircle } from 'lucide-react';
 import { platformStore } from '@/lib/data/store';
 import { Game, GameCategory } from '@/lib/types';
 import confetti from 'canvas-confetti';
+import { ImageUpload } from '@/components/admin/ImageUpload';
 
 export default function AdminGamesManager() {
   const [games, setGames] = useState<Game[]>([]);
@@ -194,16 +195,14 @@ export default function AdminGamesManager() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-mono text-zinc-400 uppercase mb-1">Thumbnail Image URL</label>
-              <input
-                type="text"
-                required
-                value={form.thumbnail_url}
-                onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })}
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-xs text-zinc-300 font-mono focus:border-cyan-500 focus:outline-none"
-              />
-            </div>
+            <ImageUpload
+              label="Game Thumbnail & Poster"
+              value={form.thumbnail_url}
+              onChange={(url) => setForm({ ...form, thumbnail_url: url })}
+              category="game"
+              aspectRatio="video"
+              description="Upload custom artwork or pick from curated arcade presets."
+            />
 
             <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">

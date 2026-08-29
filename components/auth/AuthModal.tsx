@@ -20,6 +20,7 @@ import {
 import { platformStore } from '@/lib/data/store';
 import { Profile } from '@/lib/types';
 import confetti from 'canvas-confetti';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -114,22 +115,23 @@ export function AuthModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-8 text-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-md my-auto max-h-[92vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950 p-5 sm:p-8 text-white shadow-2xl">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 rounded-full p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+          aria-label="Close dialog"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 rounded-full p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors tap-target flex items-center justify-center"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="space-y-2 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-fuchsia-500 shadow-lg shadow-cyan-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="mx-auto flex justify-center">
+            <BrandLogo size="lg" showText={false} />
           </div>
-          <h3 className="text-xl font-black tracking-tight text-white">{title}</h3>
+          <h3 className="text-lg sm:text-xl font-black tracking-tight text-white">{title}</h3>
           <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mx-auto">{subtitle}</p>
         </div>
 

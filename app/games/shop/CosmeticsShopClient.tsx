@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ShoppingBag,
@@ -19,310 +18,425 @@ import {
   Shield,
   Palette,
   Flame,
+  Volume2,
+  Eye,
+  Layers,
+  Star,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { platformStore } from '@/lib/data/store';
-import type { GameItem, GameItemType, Profile } from '@/lib/types';
+import type { ShopItem, ShopSlotType, ItemTier, Profile, PlayerInventoryItem } from '@/lib/types';
 
 interface CosmeticsShopClientProps {
-  initialItems: GameItem[];
+  initialItems: ShopItem[];
 }
 
-const CATEGORY_FILTERS: { id: string; label: string; icon: any }[] = [
-  { id: 'all', label: 'All Gear', icon: Sparkles },
-  { id: 'skin', label: 'Player & Ship Skins', icon: Palette },
-  { id: 'powerup', label: 'Combat Power-Ups', icon: Zap },
-  { id: 'cosmetic', label: 'Visual VFX', icon: Flame },
-  { id: 'badge', label: 'Profile Badges', icon: Trophy },
-  { id: 'avatar_frame', label: 'Avatar Frames', icon: Shield },
+const GAME_TABS = [
+  { id: 'all', label: 'All Catalog' },
+  { id: 'universal', label: 'Universal Profile' },
+  { id: 'pixel-kitchen-rush', label: 'Pixel Kitchen Rush' },
+  { id: 'hyper-chess', label: 'Hyper-Chess' },
+  { id: 'the-architect-and-the-rats', label: 'The Architect & The Rats' },
+  { id: 'sabotage-circuit', label: 'Sabotage Circuit' },
+  { id: 'neon-asteroid-blitz', label: 'Neon Asteroid Blitz' },
+  { id: 'cyber-slicer-2099', label: 'Cyber Slicer 2099' },
+  { id: 'dungeon-loot-dash', label: 'Dungeon Loot Dash' },
 ];
 
+const SLOT_FILTERS: { id: string; label: string; icon: any }[] = [
+  { id: 'all', label: 'All Slots', icon: Sparkles },
+  { id: 'VISUAL_SKIN', label: 'Visual Skins', icon: Eye },
+  { id: 'ACTION_JUICE', label: 'Action Juice', icon: Sparkles },
+  { id: 'GAME_GEAR', label: 'Game Gear', icon: Shield },
+  { id: 'AUDIO_THEME', label: 'Audio Themes', icon: Volume2 },
+  { id: 'AVATAR_FRAME', label: 'Avatar Frames', icon: Palette },
+  { id: 'PROFILE_TITLE', label: 'Profile Titles', icon: Trophy },
+];
+
+const TIER_COLORS: Record<ItemTier, { badge: string; border: string; glow: string }> = {
+  COMMON: {
+    badge: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+    border: 'border-zinc-800 hover:border-zinc-700',
+    glow: '',
+  },
+  RARE: {
+    badge: 'bg-blue-950/80 text-blue-300 border-blue-600/50',
+    border: 'border-blue-800/40 hover:border-blue-500/60',
+    glow: 'shadow-[0_0_15px_rgba(59,130,246,0.15)]',
+  },
+  EPIC: {
+    badge: 'bg-purple-950/80 text-purple-300 border-purple-600/50',
+    border: 'border-purple-800/40 hover:border-purple-500/60',
+    glow: 'shadow-[0_0_20px_rgba(168,85,247,0.2)]',
+  },
+  LEGENDARY: {
+    badge: 'bg-amber-950/80 text-amber-300 border-amber-500/50',
+    border: 'border-amber-500/60 hover:border-amber-400',
+    glow: 'shadow-[0_0_25px_rgba(245,158,11,0.25)]',
+  },
+};
+
 export function CosmeticsShopClient({ initialItems }: CosmeticsShopClientProps) {
-  const [items, setItems] = useState<GameItem[]>(initialItems);
+  const [items, setItems] = useState<ShopItem[]>(initialItems);
   const [user, setUser] = useState<Profile | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [inventory, setInventory] = useState<PlayerInventoryItem[]>([]);
   const [activeGame, setActiveGame] = useState<string>('all');
+  const [activeSlot, setActiveSlot] = useState<string>('all');
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
-  const [ownedItemIds, setOwnedItemIds] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  useEffect(() => {
+  const refreshUserData = useCallback(() => {
     const u = platformStore.getCurrentUser();
     setUser(u);
-
-    // Listen for balance updates from anywhere in the window
-    const handleBalanceEvent = () => {
-      setUser(platformStore.getCurrentUser());
-    };
-    window.addEventListener('balance-updated', handleBalanceEvent);
-    return () => window.removeEventListener('balance-updated', handleBalanceEvent);
+    if (u) {
+      setInventory(platformStore.getInventory(u.id));
+    }
   }, []);
 
-  const handlePurchase = async (item: GameItem) => {
+  useEffect(() => {
+    refreshUserData();
+    const handleEvents = () => refreshUserData();
+    window.addEventListener('balance-updated', handleEvents);
+    window.addEventListener('inventory-updated', handleEvents);
+    window.addEventListener('loadout-updated', handleEvents);
+
+    return () => {
+      window.removeEventListener('balance-updated', handleEvents);
+      window.removeEventListener('inventory-updated', handleEvents);
+      window.removeEventListener('loadout-updated', handleEvents);
+    };
+  }, [refreshUserData]);
+
+  const ownedItemIds = useMemo(() => new Set(inventory.map((i) => i.item_id)), [inventory]);
+  const equippedItemIds = useMemo(
+    () => new Set(inventory.filter((i) => i.is_equipped).map((i) => i.item_id)),
+    [inventory]
+  );
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      // Game Filter
+      if (activeGame === 'universal' && item.game_id !== null) return false;
+      if (activeGame !== 'all' && activeGame !== 'universal' && item.game_id !== activeGame) return false;
+
+      // Slot Filter
+      if (activeSlot !== 'all' && item.slot_type !== activeSlot) return false;
+
+      return true;
+    });
+  }, [items, activeGame, activeSlot]);
+
+  const handleToggleEquip = async (item: ShopItem) => {
+    if (!user) return;
+    setPurchasingId(item.id);
+    const isEquipped = equippedItemIds.has(item.id);
+
+    try {
+      const res = await fetch('/api/shop/equip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId: item.id,
+          userId: user.id,
+          action: isEquipped ? 'unequip' : 'equip',
+          gameId: item.game_id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedback({
+          type: 'success',
+          message: isEquipped ? `Unequipped ${item.name}` : `Equipped ${item.name}!`,
+        });
+        refreshUserData();
+      }
+    } catch {
+      if (isEquipped) {
+        platformStore.unequipItem(user.id, item.id);
+      } else {
+        platformStore.equipItem(user.id, item.id);
+      }
+      refreshUserData();
+    } finally {
+      setPurchasingId(null);
+    }
+  };
+
+  const handlePurchase = async (item: ShopItem) => {
     if (!user) {
-      setFeedback({ type: 'error', message: 'Please sign in to purchase cosmetics from the shop.' });
+      setFeedback({ type: 'error', message: 'Please sign in to unlock gear.' });
       return;
     }
 
     if (user.points < item.price_coins) {
       setFeedback({
         type: 'error',
-        message: `Insufficient Coins: You need ${item.price_coins} coins for "${item.name}", but currently have ${user.points} coins. Win Arcade Tournaments to earn more!`,
+        message: `Insufficient Coins: Need ${item.price_coins} Coins (you have ${user.points}). Win tournament matches to claim more!`,
       });
       return;
     }
 
     setPurchasingId(item.id);
-    setFeedback(null);
-
-    // 1. Optimistic Balance Update
-    const previousPoints = user.points;
-    const optimisticPoints = previousPoints - item.price_coins;
-    platformStore.awardPoints(user.id, -item.price_coins);
-    setUser((prev) => (prev ? { ...prev, points: optimisticPoints } : null));
-
-    // Dispatch global event so Navbar immediately updates
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('balance-updated', { detail: { points: optimisticPoints } }));
-    }
 
     try {
       const res = await fetch('/api/shop/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: item.id, userId: user.id }),
+        body: JSON.stringify({ itemId: item.id, userId: user.id, autoEquip: true }),
       });
-
       const data = await res.json();
-
       if (data.success) {
-        setOwnedItemIds((prev) => new Set([...prev, item.id]));
         setFeedback({
           type: 'success',
-          message: `🎉 Unlocked "${item.name}"! Added to your permanent virtual inventory.`,
+          message: `🎉 Unlocked & Equipped: ${item.name}!`,
         });
-        confetti({ particleCount: 100, spread: 80 });
+        refreshUserData();
+        confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
       } else {
-        // Rollback optimistic update
-        platformStore.awardPoints(user.id, item.price_coins);
-        setUser((prev) => (prev ? { ...prev, points: previousPoints } : null));
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('balance-updated', { detail: { points: previousPoints } }));
-        }
-        setFeedback({ type: 'error', message: data.error || 'Purchase failed. Coins restored.' });
+        setFeedback({ type: 'error', message: data.error || 'Purchase failed.' });
       }
-    } catch (err: any) {
-      // Rollback optimistic update
-      platformStore.awardPoints(user.id, item.price_coins);
-      setUser((prev) => (prev ? { ...prev, points: previousPoints } : null));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('balance-updated', { detail: { points: previousPoints } }));
-      }
-      setFeedback({ type: 'error', message: err.message || 'Network error processing transaction.' });
+    } catch {
+      platformStore.purchaseItem(user.id, item.id);
+      refreshUserData();
     } finally {
       setPurchasingId(null);
     }
   };
 
-  const filteredItems = items.filter((item) => {
-    const matchesCategory = activeCategory === 'all' || item.item_type === activeCategory;
-    const matchesGame = activeGame === 'all' || item.game_id === activeGame;
-    return matchesCategory && matchesGame;
-  });
-
-  const getGameLabel = (gameId?: string | null) => {
-    switch (gameId) {
-      case 'neon-asteroid-blitz':
-        return 'Neon Asteroid Blitz';
-      case 'cyber-slicer':
-        return 'Cyber Slicer 2099';
-      case 'pixel-kitchen-rush':
-        return 'Pixel Kitchen Rush';
-      case 'dungeon-loot-dash':
-        return 'Dungeon Loot Dash';
-      case 'sabotage-circuit':
-        return 'Sabotage Circuit';
-      case 'the-architect-and-the-rats':
-        return 'The Architect & Rats';
-      default:
-        return 'Universal Platform Gear';
-    }
-  };
-
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-10">
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-r from-zinc-950 via-purple-950/40 to-zinc-950 p-8 sm:p-12 shadow-2xl">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="max-w-2xl space-y-3">
-            <Link
-              href="/games"
-              className="inline-flex items-center gap-1.5 text-xs font-mono font-semibold text-purple-300 hover:text-white transition-colors"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to The Arcade Vault</span>
-            </Link>
-
-            <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/40 bg-purple-500/10 px-3 py-1 text-xs font-mono font-bold text-purple-300">
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>DIGITAL COSMETICS &amp; SKINS VAULT</span>
+    <div className="min-h-screen bg-black text-white pb-24">
+      {/* Header */}
+      <div className="border-b border-zinc-800/80 bg-zinc-950/60 backdrop-blur-xl sticky top-0 z-40">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/games"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-white transition-all"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-mono font-bold text-cyan-300">
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>UNIFIED 4-SLOT LOADOUT ENGINE</span>
+                </div>
+              </div>
+              <h1 className="mt-2 text-2xl sm:text-3xl font-black tracking-tight text-white">
+                Arcade Cosmetics & Loadout Gear
+              </h1>
+              <p className="text-xs sm:text-sm text-zinc-400 mt-1">
+                Equip customized skins, particle juice, and hardware bonuses across all 7 titles.
+              </p>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-              The Cosmetics Shop
-            </h1>
-            <p className="text-sm text-zinc-300 leading-relaxed">
-              Equip bespoke hull skins, laser effects, golden spatulas, and profile badges with coins earned from weekly tournament leaderboards.
-            </p>
+            {/* Wallet Card */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/40 to-yellow-950/20 px-5 py-3 shadow-lg shadow-amber-950/20">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+                  <Coins className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono font-bold text-amber-400/80 uppercase">Wallet Balance</div>
+                  <div className="text-xl font-black font-mono text-amber-300">
+                    {(user?.points || 0).toLocaleString()} <span className="text-xs font-bold text-amber-400">COINS</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Live User Balance Card */}
-          <div className="flex-shrink-0 rounded-2xl border border-amber-500/30 bg-zinc-900/90 p-5 space-y-2 text-center backdrop-blur-xl shadow-xl">
-            <div className="flex items-center justify-center gap-1.5 text-xs font-mono font-bold text-slate-400 uppercase">
-              <Coins className="h-4 w-4 text-amber-400" />
-              <span>Available Coin Balance</span>
-            </div>
-            <div className="text-3xl font-black font-mono text-amber-400">
-              {(user?.points || 0).toLocaleString()} <span className="text-sm font-sans text-slate-400">XP / Coins</span>
-            </div>
-            <p className="text-[11px] text-zinc-500">
-              Signed in as <strong className="text-white">{user?.username || 'Guest'}</strong>
-            </p>
+          {/* Game Tabs */}
+          <div className="mt-6 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {GAME_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveGame(tab.id)}
+                className={`rounded-xl border px-3.5 py-1.5 text-xs font-mono font-bold whitespace-nowrap transition-all ${
+                  activeGame === tab.id
+                    ? 'border-cyan-500 bg-cyan-950/60 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                    : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Slot Type Filters */}
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {SLOT_FILTERS.map((slot) => {
+              const Icon = slot.icon;
+              const isSelected = activeSlot === slot.id;
+              return (
+                <button
+                  key={slot.id}
+                  onClick={() => setActiveSlot(slot.id)}
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-mono transition-all ${
+                    isSelected
+                      ? 'border-pink-500 bg-pink-950/40 text-pink-300 font-bold'
+                      : 'border-zinc-800/80 bg-zinc-900/30 text-zinc-400 hover:border-zinc-700'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{slot.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Feedback Toast */}
+      {/* Feedback Banner */}
       {feedback && (
-        <div
-          className={`flex items-center gap-3 rounded-2xl p-4 text-xs font-bold ${
-            feedback.type === 'success'
-              ? 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-300'
-              : 'bg-rose-950/80 border border-rose-500/50 text-rose-300'
-          }`}
-        >
-          {feedback.type === 'success' ? (
-            <CheckCircle className="h-5 w-5 text-emerald-400 flex-shrink-0" />
-          ) : (
-            <AlertCircle className="h-5 w-5 text-rose-400 flex-shrink-0" />
-          )}
-          <span>{feedback.message}</span>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-4">
+          <div
+            className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-xs font-mono ${
+              feedback.type === 'success'
+                ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300'
+                : 'border-red-500/40 bg-red-950/30 text-red-300'
+            }`}
+          >
+            <span>{feedback.message}</span>
+            <button onClick={() => setFeedback(null)} className="text-zinc-400 hover:text-white">
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Filter Category Pills */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 pb-4">
-        <Filter className="w-4 h-4 text-zinc-500 mr-2" />
-        {CATEGORY_FILTERS.map((cat) => {
-          const Icon = cat.icon;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
-                activeCategory === cat.id
-                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20 scale-105'
-                  : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{cat.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Catalog Grid */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          {filteredItems.map((item) => {
+            const isOwned = ownedItemIds.has(item.id);
+            const isEquipped = equippedItemIds.has(item.id);
+            const isProcessing = purchasingId === item.id;
+            const tierStyle = TIER_COLORS[item.tier] || TIER_COLORS.COMMON;
 
-      {/* Cosmetics Responsive CSS Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredItems.map((item) => {
-          const isOwned = ownedItemIds.has(item.id);
-          const isPurchasing = purchasingId === item.id;
-          const canAfford = (user?.points || 0) >= item.price_coins;
+            let meta: Record<string, any> = {};
+            try {
+              meta = typeof item.metadata_json === 'string' ? JSON.parse(item.metadata_json) : item.metadata_json;
+            } catch {
+              meta = {};
+            }
 
-          return (
-            <div
-              key={item.id}
-              className="group flex flex-col justify-between overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/80 shadow-xl transition-all duration-300 hover:border-purple-500/50 hover:bg-zinc-900 backdrop-blur-xl"
-            >
-              <div>
-                {/* Asset Image */}
-                <div className="relative aspect-square w-full overflow-hidden bg-zinc-950">
-                  <Image
-                    src={
-                      item.asset_url ||
-                      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80'
-                    }
-                    alt={item.name}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 300px"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    unoptimized
-                  />
-
-                  {/* Badges Overlay */}
-                  <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                    <span className="rounded-full bg-black/80 backdrop-blur-md px-3 py-1 text-[10px] font-mono font-bold text-purple-300 border border-purple-500/30">
-                      {item.item_type.toUpperCase()}
+            return (
+              <div
+                key={item.id}
+                className={`flex flex-col justify-between rounded-3xl border bg-zinc-950/80 p-5 transition-all duration-200 ${
+                  isEquipped
+                    ? 'border-emerald-500/80 bg-emerald-950/10 shadow-[0_0_25px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/40'
+                    : `${tierStyle.border} ${tierStyle.glow}`
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`rounded-lg border px-2 py-0.5 text-[10px] font-mono font-black ${tierStyle.badge}`}>
+                      {item.tier}
+                    </span>
+                    <span className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+                      {item.slot_type}
                     </span>
                   </div>
 
-                  <div className="absolute bottom-3 right-3">
-                    <span className="rounded-full bg-zinc-950/90 px-3 py-1 text-[11px] font-mono font-bold text-amber-400 border border-amber-500/40 flex items-center gap-1 shadow-lg">
-                      <Coins className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{item.price_coins.toLocaleString()}</span>
-                    </span>
-                  </div>
-                </div>
+                  <h3 className="text-base font-bold text-white tracking-tight">{item.name}</h3>
+                  <p className="text-xs font-mono text-cyan-400 mb-3">{item.game_id || 'Universal Profile'}</p>
 
-                {/* Content */}
-                <div className="p-5 space-y-2">
-                  <div className="text-[11px] font-mono font-bold text-slate-400 uppercase truncate">
-                    {getGameLabel(item.game_id)}
-                  </div>
-                  <h3 className="text-base font-bold text-white group-hover:text-purple-300 transition-colors">
-                    {item.name}
-                  </h3>
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <div className="p-5 pt-0">
-                {isOwned ? (
-                  <button
-                    disabled
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-950/80 border border-emerald-500/40 py-2.5 text-xs font-bold text-emerald-300 cursor-default"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Unlocked &amp; In Vault</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handlePurchase(item)}
-                    disabled={isPurchasing}
-                    className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all shadow-lg hover:scale-102 ${
-                      canAfford
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-600/25 hover:from-purple-500 hover:to-indigo-500'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
-                    } disabled:opacity-50`}
-                  >
-                    {isPurchasing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ShoppingBag className="h-4 w-4" />
+                  {/* Metadata Visual Telemetry Card */}
+                  <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-3.5 mb-4 space-y-1 text-xs font-mono">
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase flex items-center justify-between mb-1">
+                      <span>Attribute Data</span>
+                      <Zap className="h-3 w-3 text-amber-400" />
+                    </div>
+                    {meta.stat && (
+                      <div className="flex items-center justify-between text-cyan-300">
+                        <span className="text-zinc-400">{meta.stat}:</span>
+                        <span className="font-bold">+{meta.value}x</span>
+                      </div>
                     )}
-                    <span>
-                      {isPurchasing
-                        ? 'Processing Unlock...'
-                        : canAfford
-                        ? `Buy Now (${item.price_coins} c)`
-                        : `Need ${item.price_coins} c`}
-                    </span>
-                  </button>
-                )}
+                    {meta.chefSprite && (
+                      <div className="flex items-center justify-between text-pink-300">
+                        <span className="text-zinc-400">Chef Hull:</span>
+                        <span className="font-bold">{meta.chefSprite}</span>
+                      </div>
+                    )}
+                    {meta.boardDark && (
+                      <div className="flex items-center justify-between text-purple-300">
+                        <span className="text-zinc-400">Theme Hex:</span>
+                        <span className="font-bold">{meta.coreColor || meta.boardLight}</span>
+                      </div>
+                    )}
+                    {meta.dashParticleColor && (
+                      <div className="flex items-center justify-between text-amber-300">
+                        <span className="text-zinc-400">Trail:</span>
+                        <span className="font-bold">{meta.trailType || 'nitro'}</span>
+                      </div>
+                    )}
+                    {meta.synthPreset && (
+                      <div className="flex items-center justify-between text-purple-300">
+                        <span className="text-zinc-400">Audio:</span>
+                        <span className="font-bold">{meta.synthPreset}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom CTA Action */}
+                <div className="pt-2">
+                  {isEquipped ? (
+                    <button
+                      onClick={() => handleToggleEquip(item)}
+                      disabled={isProcessing}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-xs font-mono font-bold text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all disabled:opacity-50"
+                    >
+                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'UNEQUIP'}
+                    </button>
+                  ) : isOwned ? (
+                    <button
+                      onClick={() => handleToggleEquip(item)}
+                      disabled={isProcessing}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 py-2.5 text-xs font-mono font-bold text-white hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-600/30 disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4" />
+                          <span>EQUIP LOADOUT</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handlePurchase(item)}
+                      disabled={isProcessing || (user ? user.points < item.price_coins : false)}
+                      className={`w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-mono font-bold transition-all shadow-lg ${
+                        user && user.points >= item.price_coins
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black hover:from-amber-400 hover:to-amber-500 shadow-amber-500/20'
+                          : 'bg-zinc-800 text-zinc-500 border border-zinc-700/50 cursor-not-allowed'
+                      }`}
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : user && user.points >= item.price_coins ? (
+                        <>
+                          <Coins className="h-4 w-4" />
+                          <span>BUY & EQUIP ({item.price_coins} COINS)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-4 w-4" />
+                          <span>{item.price_coins} COINS</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

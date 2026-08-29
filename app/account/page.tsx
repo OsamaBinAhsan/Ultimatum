@@ -275,8 +275,8 @@ export default function AccountPage() {
       {/* Main Grid: Sidebar Nav + Dynamic Content */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Navigation Sidebar */}
-        <div className="lg:col-span-3 space-y-2">
-          <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+        <div className="lg:col-span-3 space-y-2 w-full">
+          <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 no-scrollbar">
             {TABS.map((t) => {
               const Icon = t.icon;
               const isActive = tab === t.key;
@@ -284,16 +284,16 @@ export default function AccountPage() {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`flex items-center gap-3 whitespace-nowrap rounded-2xl px-4 py-3 text-xs font-bold transition-all w-full text-left ${
+                  className={`flex items-center gap-2.5 sm:gap-3 whitespace-nowrap rounded-2xl px-3.5 sm:px-4 py-3 text-xs font-bold transition-all flex-shrink-0 lg:w-full text-left tap-target ${
                     isActive
                       ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/15 font-black'
                       : 'border border-zinc-800 bg-zinc-900/80 text-zinc-400 hover:bg-zinc-800 hover:text-white'
                   }`}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{t.label}</span>
+                  <span>{t.label}</span>
                   <ChevronRight
-                    className={`w-3.5 h-3.5 opacity-50 hidden lg:block ${isActive ? 'opacity-100' : ''}`}
+                    className={`w-3.5 h-3.5 opacity-50 ml-auto hidden lg:block ${isActive ? 'opacity-100' : ''}`}
                   />
                 </button>
               );
