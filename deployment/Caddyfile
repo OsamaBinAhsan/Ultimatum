@@ -1,0 +1,15 @@
+# ==============================================================================
+# Caddy Reverse Proxy & Automatic SSL Configuration
+# Domain: ultimatumroom.com & www.ultimatumroom.com
+#
+# Instructions:
+# 1. Download Caddy for Windows (https://caddyserver.com/download)
+# 2. Place caddy.exe and this Caddyfile into C:\caddy\
+# 3. Run: .\caddy.exe run
+# Caddy automatically provisions and auto-renews free SSL certificates!
+# ==============================================================================
+
+ultimatumroom.com, www.ultimatumroom.com {
+    # Forward all HTTP requests and WebSockets to the Ultimatum Node.js server
+    reverse_proxy 127.0.0.1:3000
+}
